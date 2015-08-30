@@ -3,6 +3,11 @@ Version 0.1
 
 By Maxwell of Graffity
 
+compile:
+
+script/compile.rb demo
+
+
 References:
  * http://www.oxyron.de/html/opcodes02.html
  * http://unusedino.de/ec64/technical/aay/c64/bmain.htm
