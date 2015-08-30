@@ -33,6 +33,10 @@ module R64
       @pc = @start
     end
     
+    def set_pc address
+      @pc = address
+    end
+    
   end
 
 end

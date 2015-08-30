@@ -1,6 +1,6 @@
 module R64
   class Vic
-    require 'assembler'
+    #require 'assembler'
     
     def initialize
       R64::Assembler.class_eval do
@@ -27,19 +27,19 @@ module R64
         end
 
         def background *args
-          set 0xd021, args
+          set 0xd021, *args
         end
 
         def border *args
-          set 0xd020, args
+          set 0xd020, *args
         end
         
         def spritex num, *args
-          _spritex num, args
+          _spritex num, *args
         end
 
         def spritey num, *args
-          _spritey num, args
+          _spritey num, *args
         end
         
         def get_color color
@@ -48,7 +48,7 @@ module R64
 
 private
 
-        def _spritex num, args
+        def _spritex num, *args
           if args.any? && args[0] > 255
           
           else

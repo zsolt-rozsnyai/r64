@@ -25,11 +25,6 @@ module R64
     require 'memory'
     require 'vic'
     require 'processor'
-  
-    DEFAULT_SET_OPTIONS = {
-      :load => true,
-      :with => :a
-    }
     
     ADDRESSES = {
       :nmi => 0xfffa,
@@ -48,7 +43,7 @@ module R64
         :abx => {:code => 0x1d, :length => 3, :cycles => 3},
         :aby => {:code => 0x19, :length => 3, :cycles => 3}
       },
-      :and => {
+      :ana => {
         :imm => {:code => 0x29, :length => 2, :cycles => 2},
         :zp  => {:code => 0x25, :length => 2, :cycles => 3},
         :zpx => {:code => 0x35, :length => 2, :cycles => 4},
@@ -240,10 +235,12 @@ module R64
       :nop => {:noop => {:code => 0xea, :length => 1, :cycles => 1}}
     }
   
-    def initialize
-      @memory = R64::Memory.new
+    def initialize options={}
+      @options = options
+      @charsets = @options[:charsets] || {}
+      @memory = options[:memory] || R64::Memory.new(options)
       @vic = R64::Vic.new
-      @processor = R64::Processor.new
+      @processor = R64::Processor.new options
     end
     
     ## accessors
@@ -258,20 +255,31 @@ module R64
 
     ## labeling
     def get_label arg, options={}
-      @precompile ? 12345 : @labels[arg] - 1
+      @labels ||= {}
+      @precompile ? 12345 : @labels[arg] ? @labels[arg] : raise(Exception.new("Label does not exists '#{arg}', #{@labels.to_json}"))
     end
     
-    def label name
+    def label name, address=false
+      if address === :double
+        label "#{name}_lo".to_sym
+        label "#{name}_hi".to_sym, processor.pc+1
+        address = false
+      end
       @labels ||= {}
-      @labels[name] = @processor.pc + 1
+      if @labels[name] && @precompile
+        raise Exception.new("Double definition of label '#{name}'")
+      else
+        puts "Label #{name} #{(address || @processor.pc).to_s(16)}"
+        @labels[name] = address || @processor.pc
+      end
     end
     
     ## store a double
     def address store, what, options={}
       store = ADDRESSES[store] if store.is_a?(Symbol)
       what = get_label what if what.is_a?(Symbol)
-      set store, [hi_lo(what)[:lo], options]
-      set store, [hi_lo(what)[:hi], options.merge(:hi => true)]
+      set store, hi_lo(what)[:lo], options
+      set store, hi_lo(what)[:hi], options.merge(:hi => true)
     end
     
     ## Split double
@@ -293,6 +301,10 @@ module R64
       address :irq, entry, options
     end
     
+    def clear_memory options
+      @memory.clear options
+    end
+    
     ## compiling
 
     def precompile
@@ -302,45 +314,30 @@ module R64
       @precompile = false
     end
     
-    def compile!
+    def compile! options={}
       puts "1. round --------------------------------"
       precompile
       puts "2. round --------------------------------"
       main
-      save!
-      puts memory.to_json
+      puts @labels.to_json unless @labels
+      #puts memory.to_json
+      save! options if options[:save] || options[:filename]
     end
     
     def filename
       self.class.name
     end
     
-    def save! fn=nil
-      fn ||= filename.downcase[0..15]
+    def save! options={}
+      fn = (options[:filename] || filename).downcase[0..15]
+      start = hi_lo(options[:start] || processor.start)
       File.open( "./prg/#{fn}.prg", 'w' ) do |output|
-        start = hi_lo(processor.start)
+        puts "Starting address: #{start.to_json}"
         output.print start[:lo].chr
         output.print start[:hi].chr
         memory.each do | byte |
-          output.print byte.chr
+          output.print byte.to_i.chr
         end
-      end
-    end
-    
-    def set register, args=[]
-      args = [args] unless args.is_a?(Array)
-      options = extract_set_register_options args
-      options[:load] = false if options[:args].empty?
-      register = register + 1 if options.delete(:hi)
-      if options[:with] == :y
-        ldy args[0] if options[:load]
-        sty register
-      elsif options[:with] == :x
-        ldx args[0] if options[:load]
-        stx register
-      else
-        lda args[0] if options[:load]
-        sta register
       end
     end
     
@@ -352,8 +349,12 @@ module R64
         _spritey num.to_i, args
       ##This is in place:
       elsif OPCODES.has_key? method
-        puts "Adding: #{method} --------------------------------------------------"
+        puts "Adding code: #{method} #{args.to_json}--------------------------------------------------"
         add_code(:token => method, :args => args)
+      elsif @labels[method]
+        @labels[method] 
+      elsif @precompile
+        12345
       else
         super
       end
@@ -361,40 +362,47 @@ module R64
 
 
 private
-
-    def extract_set_register_options args
-      options = {}
-      args = [args] unless args.is_a?(Array)
-      options = args.pop if args.any? && args.last.is_a?(Hash)
-      args[0] = get_color args[0] if args.any? && args[0].is_a?(Symbol)
-      options[:args] = args
-      DEFAULT_SET_OPTIONS.merge(options)
-    end  
     
     ## interpret opcodes
     def add_code options
-      puts options.to_json
+      #puts options.to_json
       options = extract_arguments(options) if options[:args]
       options = extract_address(options) if options[:args]
       if OPCODES[options[:token]][:rel]
         options[:type] = :rel
-        options[:address] = options[:address] - @processor.pc if options[:address] > 255
+        puts options[:address]
+        options[:address] = options[:address] - (@processor.pc + 2)# if options[:address] > 255
+        puts options[:address]
+        raise Exception.new('Branch out of range') if !@precompile && (options[:address] > 127 || options[:address] < -128)
+        options[:address] = 256+options[:address] if options[:address] < 0
+        puts options[:address]
       end
-      options[:address] = 254+options[:address] if options[:address] && options[:address] < 0
       options[:type] ||= :noop
-      puts options.to_json
+      #puts options.to_json
       opcode = OPCODES[options[:token]][options[:type]]
-      @memory[@processor.pc] = opcode[:code]
+      add_byte opcode[:code]
       @processor.increase_pc
       if opcode[:length] == 2
-        @memory[@processor.pc] = options[:address]
+        add_byte options[:address]
         @processor.increase_pc
       elsif opcode[:length] == 3
         hi = (options[:address] / 256).to_i
         lo = options[:address] - (hi*256)
-        @memory[@processor.pc] = lo
-        @memory[@processor.pc+1] = hi
-        @processor.increase_pc 2
+        add_byte lo
+        @processor.increase_pc
+        add_byte hi
+        @processor.increase_pc
+      end
+    end
+    
+    def add_byte *args
+      args = [args] unless args.is_a?(Array)
+      if args.length == 1
+        @memory[@processor.pc] = args[0].to_i
+      elsif args.length == 2
+        @memory[args[0]] = args[1].to_i
+      else
+        raise Exception.new("Wrong number of arguments")
       end
     end
     
@@ -405,6 +413,7 @@ private
     end
     
     def extract_address options
+      puts options.to_json
       args = options.delete(:args)
       args[0] = get_label(args[0], options) if args[0].is_a?(Symbol)
       options[:address] = args[0] || nil
