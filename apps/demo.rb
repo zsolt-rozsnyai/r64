@@ -1,6 +1,19 @@
+require 'bits'
+
 class Demo < R64::Assembler
+  
+  extend R64::Bits  
+  
   #irq script based on: http://codebase64.org/doku.php?id=base:introduction_to_raster_irqs
   def main
+    fill 1
+    var :counter, 10
+    lda :counter
+    fill 10
+    fill 256 do |i, options|
+      (Math.sin(i*3.14/128)*128+128).to_i
+    end
+    fill 10, 1
     sei
     set 0xdc0d, 0x7f #shortcut for lda 0x7f; sta 0xdc0d
     set 0xdd0d #without second argument its simply a sta 0xdd0d
@@ -15,6 +28,7 @@ class Demo < R64::Assembler
     cli
   label :self
     jmp :self
+   fill 10
   label :irq
     nop 24
     # you can use ruby to create anticycles
