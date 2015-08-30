@@ -1,11 +1,12 @@
+#!/usr/bin/ruby -w
 $LOAD_PATH.unshift(File.join(File.dirname(__FILE__), '../lib'))
 $LOAD_PATH.unshift(File.join(File.dirname(__FILE__), '../apps'))
-
 require 'assembler'
-require 'demo.rb'
-#these don't work:
-#require '../apps/*.r64'
-#puts Dir["apps/*.r64"]
-#Dir["apps/*.r64"].each {|file| require file }
+
+ARGV.each do |arg|
+  $LOAD_PATH.unshift(File.join(File.dirname(__FILE__), "../apps/#{arg}/lib"))
+  require "#{arg}/project.rb"
+end
+
 
 
