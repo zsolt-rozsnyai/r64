@@ -19,11 +19,7 @@ class Demo < R64::Assembler
     irq #shortcut for: address :irq, :irq
     cli
   label :self
-    lda 0xdc01
-    cmp 0xef
-    bne :self
-    jsr 0xfce2
-    rts
+    jmp :self
     
   label :irq
     border 0
