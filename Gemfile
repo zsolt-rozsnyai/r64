@@ -1,3 +1,8 @@
-source 'https://rubygems.org'
+# frozen_string_literal: true
 
-gem 'chunky_png'
+source "https://rubygems.org"
+
+# Specify your gem's dependencies in r64.gemspec
+gemspec
+
+gem "rake", "~> 13.0"

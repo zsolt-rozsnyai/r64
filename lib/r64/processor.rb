@@ -1,5 +1,6 @@
 module R64
   class Processor
+    attr_accessor :start
   
     DEFAULT_OPTIONS = {:start => 0x1000, :a => 0, :x => 0, :y => 0, :s => 0}
     
@@ -19,10 +20,6 @@ module R64
     
     def pc
       @pc
-    end
-    
-    def start
-      @start
     end
     
     def increase_pc count=1
