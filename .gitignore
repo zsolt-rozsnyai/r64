@@ -1,3 +1,4 @@
-log/
-prg/
-*~
+output/
+*.gem
+vendor/
+app/

@@ -1,7 +1,5 @@
 module R64
   module Bits
-    require 'assembler'
-
     R64::Assembler.class_eval do
       DEFAULT_SET_OPTIONS = {
         :load => true,
@@ -9,14 +7,14 @@ module R64
       }
     
       def set register, *args
-      puts args.to_json
+      puts args.to_json if verbose
         args = [args] unless args.is_a?(Array)
         options = extract_set_register_options args
         options[:load] = false if options[:args].empty?
         register = get_label register if register.is_a?(Symbol) 
         register = register + 1 if options.delete(:hi)
         length = options.delete(:length) || 1
-      puts args.to_json
+      puts args.to_json if verbose
         if options[:with] == :y
           ldy args[0] if options[:load]
           length.times{|i| sty register+i}
@@ -30,7 +28,7 @@ module R64
       end
       
       def fill length, *args, &block
-        puts "Adding data: #{length} #{args.to_json}--------------------------------------------------"
+        puts "Adding data: #{length} #{args.to_json}" if verbose
         args = [args] unless args.is_a?(Array)
         options = args.delete(args.last) if args && args.last.is_a?(Hash)
         if args.length == 1
@@ -91,8 +89,12 @@ module R64
       def text name, txt
         data name, txt.split(//).map{|l| l.ord < 64 ? l.ord : l.ord-64 }
       end
+
+      def l name
+        get_label name
+      end
       
-      def move from, to, options={}
+      def copy_with from, to, options={}
         if options[:with] == :x
           ldx from
           stx to
@@ -114,11 +116,7 @@ module R64
         DEFAULT_SET_OPTIONS.merge(options)
       end
       
-      def sys entry
-        
-      end
-      
-      
+      def sys entry; end
     end
   end
 end

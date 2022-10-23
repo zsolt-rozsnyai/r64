@@ -1,0 +1,91 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "r64"
+require "dry/cli"
+require "fileutils"
+
+module R64
+  module CLI
+    module Commands
+      extend Dry::CLI::Registry
+
+      class Version < Dry::CLI::Command
+        desc "Print version"
+
+        def call(*)
+          puts R64::VERSION
+        end
+      end
+
+      class Compile < Dry::CLI::Command
+        desc "Compile"
+
+        def call(*)
+          $mode = :compile
+          Dir['./{lib,app}/**/*.rb'].each do |file|
+            require "./#{file}"
+          end
+
+          FileUtils.rm_rf Dir.glob("./output/*") if Dir.exist?("./output")
+          Dir.mkdir("./output") if !Dir.exist?("./output")
+
+          main = nil
+
+          R64::Assembler.descendants.each do |klass|
+            next if klass.name.split('::').first == 'R64'
+            
+            if klass.instance_methods.include?(:_main)
+              inst = klass.new()
+              inst.compile! save: true
+              main ||= inst
+            end 
+          end
+        end
+      end
+
+      class Debug < Dry::CLI::Command
+        desc "Debug"
+
+        def call(*)
+          $mode = :debug
+          Dir['./{lib,app}/**/*.rb'].each do |file|
+            require "./#{file}"
+          end
+
+          FileUtils.rm_rf Dir.glob("./output/*") if Dir.exist?("./output")
+          Dir.mkdir("./output") if !Dir.exist?("./output")
+
+          main = nil
+
+          R64::Assembler.descendants.each do |klass|
+            next if klass.name.split('::').first == 'R64'
+            
+            if klass.instance_methods.include?(:_main)
+              inst = klass.new()
+              inst.compile! save: true
+              main ||= inst
+            end 
+          end
+
+          cmd = ["retrodebugger"]
+          cmd << "-symbols ./output/meta/labels/main.labels"
+          cmd << "-prg ./output/main.prg"
+          cmd << "-jmp x#{main.entrypoint.to_s(16)}"
+          cmd << "-breakpoints ./output/meta/breakpoints/main.breakpoints"
+          cmd << "-watch ./output/meta/watches/main.watches"
+          cmd << '-pass'
+
+          puts cmd.join(' ')
+          `#{cmd.join(' ')}`
+        end
+      end
+
+      register "version", Version, aliases: ["v", "-v", "--version"]
+      register "compile", Compile, aliases: ["c", "-c", "--compile"]
+      register "debug", Debug, aliases: ["d", "-d", "--debug"]
+    end
+  end
+end
+
+Dry::CLI.new(R64::CLI::Commands).call
