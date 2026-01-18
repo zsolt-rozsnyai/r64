@@ -1,0 +1,62 @@
+require './app/multiplexer'
+
+class Screen < R64::Base
+  before do
+    @_multiplexer = Multiplexer.new self
+  end
+
+  def _setup_irq
+      sei
+      lda 0x7f
+      sta 0xdc0d
+      sta 0xdd0d
+      lda 0xdc0d
+      lda 0xdd0d
+    set 0xd01a, 1
+    set 0xd012, 0x18
+    set 0xd011, 0x1b
+    set 0xd018, 0x14
+      lda 0x35
+      sta 0x01, :zeropage => true #TODO: this is not so pretty
+    address 0xfffe, :irq_start
+
+    @_multiplexer.turn_on_sprites
+
+      lda 0xd011
+      ora 0x10
+      sta 0xd011
+      lda 0xff
+      sta 0xd015
+      clear
+      cli
+  end
+
+  def _irq
+    label :irq_start
+      lda 0x00
+      sta 0xd021
+      sta 0xd020
+
+    @_multiplexer.move_sprites
+
+      lda 0x07
+      sta 0xd021
+      sta 0xd020
+
+      set 0xd019, 0xff
+      rti
+  end
+
+  def _clear
+      ldx 0
+    label :clear_loop
+      lda 0x20
+      sta 0x0400, :x
+      sta 0x0500, :x
+      sta 0x0600, :x
+      sta 0x0700, :x
+      inx
+      cpx 0
+      bne :clear_loop
+  end
+end
