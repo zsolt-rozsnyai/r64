@@ -1,0 +1,125 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Development script to load lib files directly and run debug in example context
+# This avoids needing to install the gem during development
+
+require "dry/cli"
+require "fileutils"
+
+# Get the gem root directory (where this script is located)
+GEM_ROOT = File.expand_path(File.dirname(__FILE__))
+LIB_PATH = File.join(GEM_ROOT, "lib")
+EXAMPLE_PATH = File.join(GEM_ROOT, "example")
+
+# Add lib to load path and require r64 files directly
+$LOAD_PATH.unshift(LIB_PATH)
+
+# Load r64 library directly from lib
+require_relative "lib/r64"
+
+module R64
+  module DevCLI
+    module Commands
+      extend Dry::CLI::Registry
+
+      class Debug < Dry::CLI::Command
+        desc "Debug (development mode - loads from lib, runs in example context)"
+
+        def call(*)
+          # Change to example directory
+          original_dir = Dir.pwd
+          Dir.chdir(EXAMPLE_PATH)
+          
+          puts "Running in development mode from: #{EXAMPLE_PATH}"
+          puts "Loading r64 from: #{LIB_PATH}"
+          
+          $mode = :debug
+          Dir['./{lib,app}/**/*.rb'].each do |file|
+            require "./#{file}"
+          end
+
+          FileUtils.rm_rf Dir.glob("./output/*") if Dir.exist?("./output")
+          Dir.mkdir("./output") if !Dir.exist?("./output")
+
+          main = nil
+
+          R64::Assembler.descendants.each do |klass|
+            next if klass.name.split('::').first == 'R64'
+            
+            if klass.instance_methods.include?(:_main)
+              inst = klass.new()
+              inst.compile! save: true
+              main ||= inst
+            end 
+          end
+
+          if main
+            cmd = ["retrodebugger"]
+            cmd << "-symbols ./output/meta/labels/main.labels"
+            cmd << "-prg ./output/main.prg"
+            cmd << "-jmp x#{main.entrypoint.to_s(16)}"
+            cmd << "-breakpoints ./output/meta/breakpoints/main.breakpoints"
+            cmd << "-watch ./output/meta/watches/main.watches"
+            cmd << '-pass'
+
+            puts cmd.join(' ')
+            `#{cmd.join(' ')}`
+          else
+            puts "No main assembler class found with _main method"
+          end
+        ensure
+          # Restore original directory
+          Dir.chdir(original_dir)
+        end
+      end
+
+      class Compile < Dry::CLI::Command
+        desc "Compile (development mode - loads from lib, runs in example context)"
+
+        def call(*)
+          # Change to example directory
+          original_dir = Dir.pwd
+          Dir.chdir(EXAMPLE_PATH)
+          
+          puts "Running in development mode from: #{EXAMPLE_PATH}"
+          puts "Loading r64 from: #{LIB_PATH}"
+          
+          $mode = :compile
+          Dir['./{lib,app}/**/*.rb'].each do |file|
+            require "./#{file}"
+          end
+
+          FileUtils.rm_rf Dir.glob("./output/*") if Dir.exist?("./output")
+          Dir.mkdir("./output") if !Dir.exist?("./output")
+
+          main = nil
+
+          R64::Assembler.descendants.each do |klass|
+            next if klass.name.split('::').first == 'R64'
+            
+            if klass.instance_methods.include?(:_main)
+              inst = klass.new()
+              inst.compile! save: true
+              main ||= inst
+            end 
+          end
+
+          if main
+            puts "Compilation completed. Output in ./output/"
+          else
+            puts "No main assembler class found with _main method"
+          end
+        ensure
+          # Restore original directory
+          Dir.chdir(original_dir)
+        end
+      end
+
+      register "debug", Debug, aliases: ["d", "-d", "--debug"]
+      register "compile", Compile, aliases: ["c", "-c", "--compile"]
+    end
+  end
+end
+
+Dry::CLI.new(R64::DevCLI::Commands).call
