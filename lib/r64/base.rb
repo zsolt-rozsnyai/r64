@@ -28,5 +28,9 @@ module R64
       memory.finish = options[:end]
       set_entrypoint
     end
+
+    def object_name
+      "#{self.class.name}#{@index}"
+    end
   end
 end

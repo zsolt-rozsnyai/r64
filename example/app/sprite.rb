@@ -3,8 +3,8 @@ class Sprite < R64::Base
     @num = @index % 8
     var :xpos, 24 * @num
     var :ypos, 8 * @num
-    var :xspeed, (1.1 * @num).to_i
-    var :yspeed, (1.3 * @num).to_i
+    var :xspeed, (1.5 * @num).to_i % 4
+    var :yspeed, (1.9 * @num).to_i % 4
     var :color, @num
     var :num, @num
     var :shape, 0xc0 + (@num / 2).to_i

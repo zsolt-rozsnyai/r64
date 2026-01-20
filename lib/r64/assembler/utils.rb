@@ -34,14 +34,6 @@ module R64
         end
       end
 
-      def irq(entry = :irq, options = {})
-        address :irq, entry, options
-      end
-
-      def clear_memory(options)
-        @memory.clear options
-      end
-
       def compile(*args, &block)
         instance_exec(*args, &block)
       end

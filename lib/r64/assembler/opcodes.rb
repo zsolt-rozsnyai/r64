@@ -253,12 +253,16 @@ module R64
 
       def add_byte(*args)
         args = [args] unless args.is_a?(Array)
-        if args.length == 1
-          @memory[@processor.pc] = args[0].to_i
-        elsif args.length == 2
-          @memory[args[0]] = args[1].to_i
-        else
-          raise Exception.new("Wrong number of arguments")
+        
+        # Use with_caller to properly identify the calling R64::Base object
+        R64::Memory.with_caller(self) do
+          if args.length == 1
+            @memory[@processor.pc] = args[0].to_i
+          elsif args.length == 2
+            @memory[args[0]] = args[1].to_i
+          else
+            raise Exception.new("Wrong number of arguments")
+          end
         end
       end
 

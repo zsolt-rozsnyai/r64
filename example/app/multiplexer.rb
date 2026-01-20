@@ -1,7 +1,7 @@
 class Multiplexer < R64::Base
   before do
     @_sprite_managers = []
-    3.times do |i|
+    1.times do |i|
       @_sprite_managers.push SpriteManager.new self
     end
   end
