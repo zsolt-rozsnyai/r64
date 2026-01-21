@@ -1,4 +1,6 @@
 class SpriteManager < R64::Base
+  attr_reader :_sprites
+
   before do
     @_sprites = []
     8.times do |i|
@@ -11,7 +13,7 @@ class SpriteManager < R64::Base
     @_sprites.each(&:turn_on)
   end
 
-  def _move_sprites
-    @_sprites.each(&:move)
+  def _set_positions
+    @_sprites.each(&:set_position)
   end
 end

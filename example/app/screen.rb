@@ -27,6 +27,8 @@ class Screen < R64::Base
       sta 0xd011
       lda 0xff
       sta 0xd015
+      lda 0
+      sta 0xd010
       clear
       cli
   end
@@ -37,7 +39,7 @@ class Screen < R64::Base
       sta 0xd021
       sta 0xd020
 
-    @_multiplexer.move_sprites
+    @_multiplexer.calculate_next_positions
 
       lda 0x07
       sta 0xd021

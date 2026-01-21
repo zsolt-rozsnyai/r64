@@ -3,37 +3,35 @@ class Sprite < R64::Base
     @num = @index % 8
     var :xpos, 24 * @num
     var :ypos, 8 * @num
-    var :xspeed, (1.5 * @num).to_i % 4
-    var :yspeed, (1.9 * @num).to_i % 4
-    var :color, @num
     var :num, @num
-    var :shape, 0xc0 + (@num / 2).to_i
-  end
-
-  def _move
-      lda :xpos
-      clc
-      adc :xspeed
-      sta :xpos
-      lda :ypos
-      clc
-      adc :yspeed
-      sta :ypos
-    set_position
+    var :shape, 0xc0 #+ (@num / 2).to_i
+    var :color, 0
   end
 
   def _turn_on
       lda :color
       sta 0xd027 + @num
-    set_position
+      lda :shape
+      sta 0x07f8 + @num
+  end
+
+  def _set_xpos
+      sta :xpos
+  end
+
+  def _set_ypos
+      sta :ypos
   end
 
   def _set_position
       lda :xpos
+      clc
+      adc 0x20
       sta 0xd000 + @num * 2
       lda :ypos
+      clc
+      adc 0x30
       sta 0xd001 + @num * 2
-      lda :shape
-      sta 0x07f8 + @num
+      turn_on
   end
 end
