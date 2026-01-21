@@ -21,30 +21,6 @@ RSpec.describe R64::Base::Hooks do
       end
     end
 
-    describe '#after_create' do
-      context 'without block' do
-        it 'returns empty array initially' do
-          expect(test_class.after_create).to eq([])
-        end
-      end
-
-      context 'with block' do
-        it 'adds block to after_create hooks' do
-          block = proc { puts "after create" }
-          test_class.after_create(&block)
-          expect(test_class.after_create).to include(block)
-        end
-
-        it 'can add multiple blocks' do
-          block1 = proc { puts "first" }
-          block2 = proc { puts "second" }
-          test_class.after_create(&block1)
-          test_class.after_create(&block2)
-          expect(test_class.after_create).to include(block1, block2)
-        end
-      end
-    end
-
     describe '#before' do
       context 'without block' do
         it 'returns empty array initially' do

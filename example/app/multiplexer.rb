@@ -11,8 +11,8 @@ class Multiplexer < R64::Base
   end
 
   def _variables
-    data :xindex, (1..MAX_SPRITES).map{|i| i * 8 }
-    data :yindex, (1..MAX_SPRITES).map{|i| 255 - i * 8 }
+    data :xindex, (1..MAX_SPRITES).map{|i| i * 10 }
+    data :yindex, (1..MAX_SPRITES).map{|i| 255 - i * 10 }
     fill 200, 0
     label :yvalues
     fill 256 do |i|
@@ -31,6 +31,10 @@ class Multiplexer < R64::Base
       inc :xindex, :x
       clc
       inc :xindex, :x
+      clc
+      inc :xindex, :x
+      clc
+      inc :yindex, :x
       clc
       inc :yindex, :x
       inx

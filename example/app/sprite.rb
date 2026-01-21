@@ -1,10 +1,10 @@
 class Sprite < R64::Base
   def variables
     @num = @index % 8
-    var :xpos, 24 * @num
-    var :ypos, 8 * @num
+    var :xpos, 0
+    var :ypos, 0
     var :num, @num
-    var :shape, 0xc0 #+ (@num / 2).to_i
+    var :shape, 0xc0
     var :color, 0
   end
 

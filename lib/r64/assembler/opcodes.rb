@@ -1,9 +1,66 @@
 module R64
   class Assembler
+    # 6502 instruction set implementation module for the R64 assembler.
+    #
+    # This module provides the complete 6502 instruction set with all addressing
+    # modes, cycle counts, and instruction lengths. It dynamically generates
+    # methods for each instruction, allowing natural assembly syntax within Ruby.
+    #
+    # == Features
+    #
+    # * Complete 6502 instruction set (56 instructions)
+    # * All addressing modes (immediate, zero page, absolute, indexed, indirect)
+    # * Accurate cycle counts and instruction lengths
+    # * Automatic method generation for all opcodes
+    # * Branch instruction range validation
+    # * Predefined system addresses (vectors)
+    #
+    # == Addressing Modes
+    #
+    # * :imm - Immediate (#$nn)
+    # * :zp - Zero Page ($nn)
+    # * :zpx - Zero Page,X ($nn,X)
+    # * :zpy - Zero Page,Y ($nn,Y)
+    # * :abs - Absolute ($nnnn)
+    # * :abx - Absolute,X ($nnnn,X)
+    # * :aby - Absolute,Y ($nnnn,Y)
+    # * :izx - Indexed Indirect (($nn,X))
+    # * :izy - Indirect Indexed (($nn),Y)
+    # * :ind - Indirect (($nnnn))
+    # * :rel - Relative (branch instructions)
+    # * :noop - Implied/No operand
+    #
+    # == Usage
+    #
+    #   # Load instructions
+    #   lda 0x01        # LDA #$01 (immediate)
+    #   lda 0x80        # LDA $80 (zero page)
+    #   lda 0x1000      # LDA $1000 (absolute)
+    #   
+    #   # Store instructions
+    #   sta 0xd020      # STA $D020 (border color)
+    #   
+    #   # Branch instructions
+    #   bne :loop       # BNE loop (relative)
+    #   
+    #   # System instructions
+    #   jsr :subroutine # JSR subroutine
+    #   rts             # RTS (no operand)
+    #
+    # @author Maxwell of Graffity
+    # @version 0.2.0
     module Opcodes
+      # Predefined system addresses for common 6502 vectors.
+      #
+      # These addresses represent important system vectors in the 6502
+      # memory map, particularly for interrupt handling.
+      #
+      # @example Using system addresses
+      #   address(:nmi, :nmi_handler)  # Store NMI vector
+      #   address(:irq, :irq_handler)  # Store IRQ vector
       ADDRESSES = {
-        :nmi => 0xfffa,
-        :irq => 0xfffe
+        :nmi => 0xfffa,  # Non-Maskable Interrupt vector
+        :irq => 0xfffe   # Interrupt Request vector
       }
 
       OPCODES = {
@@ -210,6 +267,22 @@ module R64
         :nop => {:noop => {:code => 0xea, :length => 1, :cycles => 1}}
       }
 
+      # Dynamically creates methods for all 6502 instructions when module is included.
+      #
+      # This hook method automatically generates a Ruby method for each instruction
+      # in the OPCODES hash when the module is included in a class. Each generated
+      # method accepts arguments and calls add_code to generate the appropriate
+      # machine code.
+      #
+      # @param base [Class] The class that is including this module
+      #
+      # @example Generated methods
+      #   # After inclusion, these methods become available:
+      #   lda(0x01)     # Calls add_code(token: :lda, args: [0x01])
+      #   sta(0xd020)   # Calls add_code(token: :sta, args: [0xd020])
+      #   jmp(:loop)    # Calls add_code(token: :jmp, args: [:loop])
+      #
+      # @note This creates 56 instruction methods covering the complete 6502 instruction set
       def self.included(base)
         OPCODES.each_key do |opcode|
           base.class_eval do
@@ -222,6 +295,20 @@ module R64
 
     private
 
+      # Generates machine code for a 6502 instruction.
+      #
+      # This method handles the complex process of converting high-level instruction
+      # calls into actual 6502 machine code. It determines the appropriate addressing
+      # mode, handles operand encoding, validates branch ranges, and outputs the
+      # correct opcodes and operands.
+      #
+      # @param options [Hash] Instruction options
+      # @option options [Symbol] :token The instruction mnemonic
+      # @option options [Array] :args The instruction arguments
+      # @option options [Symbol] :type The addressing mode (determined automatically)
+      # @option options [Integer] :address The operand address/value
+      #
+      # @private
       def add_code(options)
         options = extract_arguments(options) if options[:args]
         options = extract_address(options) if options[:args]
@@ -251,6 +338,30 @@ module R64
         end
       end
 
+      # Writes a byte value to memory at the current PC or specified address.
+      #
+      # This method handles writing byte values to memory with proper caller context
+      # tracking for debugging and memory ownership. It supports two calling modes:
+      # writing to the current program counter location or to a specific address.
+      #
+      # @param args [Array] Variable arguments for byte writing
+      #   - Single argument: writes byte to current PC location
+      #   - Two arguments: writes byte to specified address
+      #
+      # @example Writing to current PC
+      #   add_byte(0x42)        # Writes 0x42 to current PC
+      #   add_byte(255)         # Writes 255 to current PC
+      #
+      # @example Writing to specific address
+      #   add_byte(0x1000, 0x42)  # Writes 0x42 to address $1000
+      #   add_byte(4096, 255)     # Writes 255 to address 4096
+      #
+      # @raise [Exception] If wrong number of arguments provided (not 1 or 2)
+      #
+      # @note Uses R64::Memory.with_caller to properly track the calling object
+      #   for debugging and memory ownership purposes.
+      #
+      # @see R64::Memory.with_caller For caller context management
       def add_byte(*args)
         args = [args] unless args.is_a?(Array)
         
@@ -266,12 +377,88 @@ module R64
         end
       end
 
+      # Extracts and processes arguments from the options hash for opcode generation.
+      #
+      # This method handles the common pattern where the last argument in an instruction
+      # call might be a hash of options (like :zeropage, :indirect, etc.). If the last
+      # argument is a hash, it merges those options into the main options hash.
+      #
+      # @param options [Hash] The options hash containing instruction arguments and flags
+      # @option options [Array] :args Array of arguments passed to the instruction
+      #
+      # @return [Hash] Modified options hash with extracted argument options merged in
+      #
+      # @example Basic usage
+      #   # For instruction: lda 0x42, zeropage: true
+      #   options = { args: [0x42, { zeropage: true }] }
+      #   result = extract_arguments(options)
+      #   # => { args: [0x42, { zeropage: true }], zeropage: true }
+      #
+      # @example Without hash argument
+      #   # For instruction: lda 0x42
+      #   options = { args: [0x42] }
+      #   result = extract_arguments(options)
+      #   # => { args: [0x42] }
+      #
+      # @note This method modifies the original options hash by merging in any
+      #   hash-based arguments, enabling flexible instruction syntax.
       def extract_arguments(options)
         args = options[:args]
         options.merge!(args.pop) if args.any? && args.last.is_a?(Hash)
         options
       end
 
+      # Extracts address information and determines the appropriate addressing mode.
+      #
+      # This method processes instruction arguments to determine the correct 6502
+      # addressing mode based on the address value, register usage, and instruction
+      # flags. It handles label resolution and automatically selects the most
+      # appropriate addressing mode for the given arguments.
+      #
+      # @param options [Hash] The options hash containing instruction arguments and flags
+      # @option options [Array] :args Array of arguments (address, registers)
+      # @option options [Boolean] :zeropage Force zero page addressing mode
+      # @option options [Boolean] :indirect Use indirect addressing mode
+      #
+      # @return [Hash] Modified options hash with :address and :type set
+      #
+      # @example Immediate/Zero Page addressing
+      #   # For: lda 0x42
+      #   options = { args: [0x42] }
+      #   result = extract_address(options)
+      #   # => { address: 0x42, type: :imm }
+      #
+      # @example Absolute addressing
+      #   # For: lda 0x1000
+      #   options = { args: [0x1000] }
+      #   result = extract_address(options)
+      #   # => { address: 0x1000, type: :abs }
+      #
+      # @example Indexed addressing
+      #   # For: lda 0x42, :x
+      #   options = { args: [0x42, :x] }
+      #   result = extract_address(options)
+      #   # => { address: 0x42, type: :zpx }
+      #
+      # @example Indirect addressing
+      #   # For: jmp 0x1000, indirect: true
+      #   options = { args: [0x1000], indirect: true }
+      #   result = extract_address(options)
+      #   # => { address: 0x1000, type: :ind }
+      #
+      # @example Label resolution
+      #   # For: lda :my_label
+      #   options = { args: [:my_label] }
+      #   result = extract_address(options)
+      #   # => { address: <resolved_address>, type: <determined_type> }
+      #
+      # @note The method automatically determines addressing modes:
+      #   - Values < 256: Zero page (:zp) or immediate (:imm)
+      #   - Values >= 256: Absolute (:abs) or indirect (:ind)
+      #   - With X/Y registers: Indexed modes (:zpx, :zpy, :abx, :aby)
+      #   - With indirect flag: Indirect modes (:ind, :izx, :izy)
+      #
+      # @see #get_label For label resolution functionality
       def extract_address(options)
         puts options.to_json if verbose
         args = options.delete(:args)

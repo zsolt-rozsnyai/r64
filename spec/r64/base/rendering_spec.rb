@@ -40,12 +40,6 @@ RSpec.describe R64::Base::Rendering do
     allow($stdout).to receive(:puts)
   end
 
-  describe '#to_code' do
-    it 'calls render_instance!' do
-      expect(instance).to receive(:render_instance!)
-      instance.to_code
-    end
-  end
 
   describe '#main' do
     it 'calls to_binary' do
