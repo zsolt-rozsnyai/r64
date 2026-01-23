@@ -3,6 +3,7 @@ require './app/multiplexer'
 class Screen < R64::Base
   before do
     @_multiplexer = Multiplexer.new self
+    @calculator_raster = 0xef
   end
 
   def _setup_irq
@@ -13,14 +14,12 @@ class Screen < R64::Base
       lda 0xdc0d
       lda 0xdd0d
     set 0xd01a, 1
-    set 0xd012, 0x18
+    set 0xd012, @calculator_raster
     set 0xd011, 0x1b
     set 0xd018, 0x14
       lda 0x35
       sta 0x01, :zeropage => true #TODO: this is not so pretty
-    address 0xfffe, :irq_start
-
-    @_multiplexer.turn_on_sprites
+    address 0xfffe, :_irq
 
       lda 0xd011
       ora 0x10
@@ -34,12 +33,40 @@ class Screen < R64::Base
   end
 
   def _irq
-    label :irq_start
       lda 0x00
       sta 0xd021
       sta 0xd020
 
-    @_multiplexer.calculate_next_positions
+      @_multiplexer.calculate_next_positions
+
+      lda @_multiplexer._sprite_managers[0]._sprites[0].ypos
+      clc
+      adc 0x20
+      sta 0xd012
+    address 0xfffe, :_irq2
+
+      lda 0x07
+      sta 0xd021
+      sta 0xd020
+
+      set 0xd019, 0xff
+      rti
+  end
+
+  def _irq2
+      lda 0x00
+      sta 0xd021
+      sta 0xd020
+
+      ldx 0
+    label :lll
+      inx
+      cpx 0x80
+      bne :lll
+
+      lda @calculator_raster
+      sta 0xd012
+    address 0xfffe, :_irq
 
       lda 0x07
       sta 0xd021

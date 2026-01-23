@@ -465,15 +465,26 @@ module R64
         args[0] = get_label(args[0], options) if args[0].is_a?(Symbol)
         options[:address] = args[0] || nil
         if args.length == 1
-          if args[0] < 256
-            options[:type] = :zp if options[:zeropage]
-            options[:type] = :imm unless options[:zeropage]
+          if options[:zeropage]
+            # Force zero page addressing when explicitly requested
+            options[:type] = :zp
+          elsif args[0] < 256
+            options[:type] = :imm
           else
             options[:type] = :abs unless options[:indirect]
             options[:type] = :ind if options[:indirect]
           end
         elsif args.length == 2
-          if args[0] < 256
+          if options[:zeropage]
+            # Force zero page indexed addressing when explicitly requested
+            if options[:indirect]
+              options[:type] = :izx if args[1] == :x
+              options[:type] = :izy if args[1] == :y
+            else
+              options[:type] = :zpx if args[1] == :x
+              options[:type] = :zpy if args[1] == :y
+            end
+          elsif args[0] < 256
             if options[:indirect]
               options[:type] = :izx if args[1] == :x
               options[:type] = :izy if args[1] == :y

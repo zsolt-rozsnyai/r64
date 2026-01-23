@@ -107,6 +107,10 @@ module R64
       @processor = @options[:processor] || R64::Processor.new(@options)
       @pc_start = @processor.pc
       @precompile = true
+      
+      # Set thread-local context for Symbol extensions
+      Thread.current[:r64_assembler_context] = self
+      
       instance_exec(&block) if block_given?
     end
   end
