@@ -102,6 +102,9 @@ module R64
     #
     # @note The actual storage includes both the value and ownership metadata
     def []=(index, value)
+      # Validate byte range
+      validate_byte_value(value)
+      
       owner = get_calling_object
 
       # Get the existing raw data using Array's [] method to avoid recursion
@@ -288,6 +291,41 @@ module R64
     #   puts memory.inspect  # Shows first 10 elements + "..."
     def inspect
       self.slice(0, 10).push('...')
+    end
+
+    private
+
+    # Validates that a value is a valid byte (0-255 integer)
+    #
+    # Ensures that values stored in memory are valid 6502 bytes that can
+    # be safely converted to characters for binary output. This prevents
+    # the RangeError that occurs when calling .chr on out-of-range values.
+    #
+    # @param value [Object] The value to validate
+    # @raise [RangeError] If value is not an integer or outside 0-255 range
+    #
+    # @example Valid values
+    #   validate_byte_value(0)    # OK
+    #   validate_byte_value(255)  # OK
+    #   validate_byte_value(128)  # OK
+    #
+    # @example Invalid values
+    #   validate_byte_value(-1)     # RangeError: Value -1 is out of byte range
+    #   validate_byte_value(256)    # RangeError: Value 256 is out of byte range
+    #   validate_byte_value(255.5)  # RangeError: Value 255.5 is not a valid integer
+    def validate_byte_value(value)
+      unless value.is_a?(Integer)
+        raise RangeError, "Value #{value.inspect} is not a valid integer"
+      end
+      
+      # During precompilation, allow any integer value since addresses may be unresolved
+      # Only validate byte range during final compilation
+      assembler_context = Thread.current[:r64_assembler_context]
+      is_precompile = assembler_context&.instance_variable_get(:@precompile)
+      
+      unless is_precompile || (0..255).include?(value)
+        raise RangeError, "Value #{value} is out of byte range [0..255]"
+      end
     end
   end
 end

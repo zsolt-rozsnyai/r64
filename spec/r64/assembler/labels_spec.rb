@@ -11,8 +11,8 @@ RSpec.describe R64::Assembler::Labels do
     context 'during precompile phase' do
       before { assembler.instance_variable_set(:@precompile, true) }
 
-      it 'returns placeholder value 12345' do
-        expect(assembler.get_label(:test_label)).to eq(12345)
+      it 'returns current PC as placeholder value' do
+        expect(assembler.get_label(:test_label)).to eq(assembler.processor.pc)
       end
 
       it 'adds reference to the label' do

@@ -138,6 +138,129 @@ RSpec.describe R64::Base do
     end
   end
 
+  describe '#inspect' do
+    context 'with no parent' do
+      subject(:base) { described_class.new }
+
+      it 'returns detailed string representation with nil parent' do
+        index = base.instance_variable_get(:@index)
+        expected = "#<R64::Base#{index} @index=#{index} @parent=nil>"
+        expect(base.inspect).to eq(expected)
+      end
+
+      it 'includes the object name in the output' do
+        expect(base.inspect).to include(base.object_name)
+      end
+
+      it 'includes the index in the output' do
+        index = base.instance_variable_get(:@index)
+        expect(base.inspect).to include("@index=#{index}")
+      end
+
+      it 'shows parent as nil when no parent is set' do
+        expect(base.inspect).to include("@parent=nil")
+      end
+    end
+
+    context 'with parent' do
+      let(:parent_base) { described_class.new }
+      subject(:child_base) { described_class.new(parent_base) }
+
+      before do
+        allow(parent_base).to receive(:verbose).and_return(false)
+        allow(child_base).to receive(:verbose).and_return(false)
+      end
+
+      it 'returns detailed string representation with parent object name' do
+        child_index = child_base.instance_variable_get(:@index)
+        parent_name = parent_base.object_name
+        expected = "#<R64::Base#{child_index} @index=#{child_index} @parent=#{parent_name}>"
+        expect(child_base.inspect).to eq(expected)
+      end
+
+      it 'includes the parent object name in the output' do
+        expect(child_base.inspect).to include("@parent=#{parent_base.object_name}")
+      end
+
+      it 'shows different indices for parent and child' do
+        parent_index = parent_base.instance_variable_get(:@index)
+        child_index = child_base.instance_variable_get(:@index)
+        
+        expect(parent_base.inspect).to include("@index=#{parent_index}")
+        expect(child_base.inspect).to include("@index=#{child_index}")
+        expect(parent_index).not_to eq(child_index)
+      end
+    end
+
+    context 'with custom subclass' do
+      let(:custom_class) do
+        Class.new(R64::Base) do
+          def self.name
+            'MyCustomSprite'
+          end
+        end
+      end
+      
+      subject(:custom_instance) { custom_class.new }
+
+      it 'uses the custom class name in inspect output' do
+        expect(custom_instance.inspect).to include('MyCustomSprite')
+      end
+
+      it 'follows the same format as base class' do
+        index = custom_instance.instance_variable_get(:@index)
+        expected = "#<MyCustomSprite#{index} @index=#{index} @parent=nil>"
+        expect(custom_instance.inspect).to eq(expected)
+      end
+    end
+
+    context 'with nested parent-child hierarchy' do
+      let(:grandparent) { described_class.new }
+      let(:parent) { described_class.new(grandparent) }
+      subject(:child) { described_class.new(parent) }
+
+      before do
+        allow(grandparent).to receive(:verbose).and_return(false)
+        allow(parent).to receive(:verbose).and_return(false)
+        allow(child).to receive(:verbose).and_return(false)
+      end
+
+      it 'shows immediate parent only, not grandparent' do
+        parent_name = parent.object_name
+        expect(child.inspect).to include("@parent=#{parent_name}")
+        expect(child.inspect).not_to include(grandparent.object_name)
+      end
+
+      it 'maintains correct parent-child relationships in inspect output' do
+        expect(grandparent.inspect).to include("@parent=nil")
+        expect(parent.inspect).to include("@parent=#{grandparent.object_name}")
+        expect(child.inspect).to include("@parent=#{parent.object_name}")
+      end
+    end
+
+    context 'format consistency' do
+      subject(:base) { described_class.new }
+
+      it 'starts with #< and ends with >' do
+        expect(base.inspect).to start_with('#<')
+        expect(base.inspect).to end_with('>')
+      end
+
+      it 'contains all required components separated by spaces' do
+        components = base.inspect[2..-2].split(' ')  # Remove #< and >
+        expect(components.length).to eq(3)
+        expect(components[0]).to eq(base.object_name)
+        expect(components[1]).to start_with('@index=')
+        expect(components[2]).to start_with('@parent=')
+      end
+
+      it 'uses consistent formatting for instance variables' do
+        expect(base.inspect).to match(/@index=\d+/)
+        expect(base.inspect).to match(/@parent=(nil|\w+\d+)/)
+      end
+    end
+  end
+
   describe 'module inclusion' do
     subject(:base) { described_class.new }
 

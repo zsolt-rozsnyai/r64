@@ -224,7 +224,7 @@ RSpec.describe R64::Assembler::Opcodes do
           result = assembler.send(:extract_address, options)
           
           expect(result[:type]).to eq(:zp)
-          expect(result[:address]).to eq(12345) # placeholder value
+          expect(result[:address]).to eq(assembler.processor.pc) # current PC as placeholder
         end
 
         it 'forces zero page addressing with low address values' do

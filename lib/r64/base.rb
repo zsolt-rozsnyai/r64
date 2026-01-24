@@ -1,6 +1,7 @@
 require_relative 'base/hooks'
 require_relative 'base/dispatch'
 require_relative 'base/rendering'
+require_relative 'base/namespaced_labels'
 
 module R64
   # Base class for R64 assembly objects that provides enhanced functionality over the basic Assembler.
@@ -54,6 +55,7 @@ module R64
     include Hooks
     include Dispatch
     include Rendering
+    include NamespacedLabels
 
     # Creates a new Base instance with optional parent relationship.
     #
@@ -151,6 +153,48 @@ module R64
     # @see #initialize For how the index is assigned
     def object_name
       "#{self.class.name}#{@index}"
+    end
+
+    # Returns a detailed string representation of this Base instance for debugging.
+    #
+    # The inspect method provides a comprehensive view of the object's state,
+    # including the unique object name, instance index, and parent relationship.
+    # This is particularly useful for debugging hierarchical object structures
+    # and understanding the composition of complex assembly programs.
+    #
+    # @return [String] A detailed string representation in the format:
+    #   "#<ObjectName @index=N @parent=ParentName>"
+    #   where ObjectName is from {#object_name}, N is the instance index,
+    #   and ParentName is the parent's object name (or nil if no parent)
+    #
+    # @example Standalone object inspection
+    #   base = R64::Base.new
+    #   puts base.inspect
+    #   # => "#<R64::Base0 @index=0 @parent=nil>"
+    #
+    # @example Parent-child relationship inspection
+    #   parent = R64::Base.new
+    #   child = R64::Base.new(parent)
+    #   puts parent.inspect  # => "#<R64::Base0 @index=0 @parent=nil>"
+    #   puts child.inspect   # => "#<R64::Base1 @index=1 @parent=R64::Base0>"
+    #
+    # @example Custom subclass inspection
+    #   class MySprite < R64::Base; end
+    #   sprite = MySprite.new
+    #   puts sprite.inspect  # => "#<MySprite0 @index=0 @parent=nil>"
+    #
+    # @note This method overrides Ruby's default Object#inspect to provide
+    #   R64-specific debugging information that's more useful than the default
+    #   object ID representation.
+    #
+    # @note The parent information uses safe navigation (&.) to handle cases
+    #   where the parent might be nil, displaying "nil" instead of raising an error.
+    #
+    # @see #object_name For how the object name is generated
+    # @see #initialize For how the index and parent are assigned
+    def inspect
+      parent_name = @parent&.object_name || 'nil'
+      "#<#{object_name} @index=#{@index} @parent=#{parent_name}>"
     end
   end
 end

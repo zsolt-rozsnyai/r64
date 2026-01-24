@@ -161,15 +161,16 @@ RSpec.describe 'Symbol Extensions' do
 
     it 'returns consistent placeholder values during precompilation' do
       result = :test_label + 10
-      expect(result).to eq(12345 + 10) # placeholder + operand
+      expect(result).to eq(processor.pc + 10) # current PC + operand
     end
 
     it 'works with all arithmetic operations during precompilation' do
-      expect(:test_label + 1).to eq(12346)
-      expect(:test_label - 1).to eq(12344)
-      expect(:test_label * 2).to eq(24690)
-      expect(:test_label / 2).to eq(6172)
-      expect(:test_label % 100).to eq(45)
+      pc = processor.pc # 0x1000 = 4096
+      expect(:test_label + 1).to eq(pc + 1)
+      expect(:test_label - 1).to eq(pc - 1)
+      expect(:test_label * 2).to eq(pc * 2)
+      expect(:test_label / 2).to eq(pc / 2)
+      expect(:test_label % 100).to eq(pc % 100)
     end
   end
 

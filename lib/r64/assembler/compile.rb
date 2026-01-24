@@ -80,8 +80,8 @@ module R64
       # Generates all debug information files.
       #
       # Creates debug output files including labels, watch points, and
-      # breakpoints in VICE monitor compatible format. Files are saved
-      # in the ./output/meta/ directory structure.
+      # breakpoints in both VICE monitor compatible format and RetroDebugger
+      # JSON format. Files are saved in the ./output/meta/ directory structure.
       #
       # @example Generating debug info
       #   assembler.debug  # Creates labels, watches, and breakpoints files
@@ -89,6 +89,9 @@ module R64
         save_labels
         save_watches
         save_breakpoints
+        save_retrodebugger_labels
+        save_retrodebugger_watches
+        save_retrodebugger_breakpoints
       end
 
       # Saves label definitions to a debug file.
@@ -111,17 +114,27 @@ module R64
 
       # Formats labels for debug output.
       #
-      # Converts the internal label hash into VICE monitor format strings
-      # with hexadecimal addresses prefixed by '$'.
+      # Converts the internal label hash and namespaced labels into VICE monitor 
+      # format strings with hexadecimal addresses prefixed by '$'.
       #
       # @return [String] Formatted labels, one per line
       #
       # @private
       def formatted_labels
         flabels = []
+        
+        # Add regular labels
         (@labels || {}).each_key do |label|
           flabels.push("#{label} = $#{@labels[label].to_s(16)}")
         end
+        
+        # Add namespaced labels if available
+        if respond_to?(:namespaced_labels)
+          namespaced_labels.each do |label, address|
+            flabels.push("#{label} = $#{address.to_s(16)}")
+          end
+        end
+        
         flabels.join("\n")
       end
 
@@ -136,9 +149,22 @@ module R64
       #   player_x = $2000
       #   addr_d020 = $d020
       def save_watches
-        file = (@watchers || []).map do |watcher|
-          "#{watcher[:label]} = $#{watcher[:address]}"
-        end.join("\n")
+        watches_lines = []
+        
+        # Add regular watches
+        (@watchers || []).each do |watcher|
+          watches_lines << "#{watcher[:label]} = $#{watcher[:address]}"
+        end
+        
+        # Add namespaced watches if available
+        if respond_to?(:collect_namespaced_watches)
+          namespaced_watches = collect_namespaced_watches
+          namespaced_watches.each do |label, address|
+            watches_lines << "#{label} = $#{address}"
+          end
+        end
+        
+        file = watches_lines.join("\n")
 
         FileUtils.mkdir_p("./output/meta/watches")
         File.open("./output/meta/watches/#{filename}.watches", 'w') do |output|
@@ -166,6 +192,257 @@ module R64
         File.open("./output/meta/breakpoints/#{filename}.breakpoints", 'w') do |output|
           output.write file
         end
+      end
+
+      # Saves labels in RetroDebugger JSON format.
+      #
+      # Creates a labels file in RetroDebugger's JSON format with all defined
+      # labels and their addresses. This format is compatible with RetroDebugger
+      # for enhanced debugging features.
+      #
+      # @example RetroDebugger labels file format
+      #   {
+      #     "Version": "1",
+      #     "Segments": [
+      #       {
+      #         "Name": "Default",
+      #         "CodeLabels": [
+      #           {
+      #             "Address": "2000",
+      #             "Name": "start"
+      #           }
+      #         ]
+      #       }
+      #     ]
+      #   }
+      def save_retrodebugger_labels
+        FileUtils.mkdir_p("./output/meta/labels")
+        File.open("./output/meta/labels/#{filename}.json.labels", 'w') do |output|
+          output.write formatted_retrodebugger_labels
+        end
+      end
+
+      # Formats labels for RetroDebugger JSON output.
+      #
+      # Converts the internal label hash and namespaced labels into RetroDebugger's 
+      # JSON format with proper structure and metadata.
+      #
+      # @return [String] JSON formatted labels
+      #
+      # @private
+      def formatted_retrodebugger_labels
+        require 'json'
+        
+        code_labels = []
+        
+        # Add regular labels
+        (@labels || {}).each do |label, address|
+          code_labels << {
+            "Address" => address.to_s(16),
+            "Name" => label.to_s
+          }
+        end
+        
+        # Add namespaced labels if available
+        if respond_to?(:namespaced_labels)
+          namespaced_labels.each do |label, address|
+            code_labels << {
+              "Address" => address.to_s(16),
+              "Name" => label.to_s
+            }
+          end
+        end
+
+        data = {
+          "Version" => "1",
+          "Segments" => [
+            {
+              "Name" => "Default",
+              "CodeLabels" => code_labels
+            }
+          ]
+        }
+
+        JSON.pretty_generate(data)
+      end
+
+      # Saves watches in RetroDebugger JSON format.
+      #
+      # Creates a watches file in RetroDebugger's JSON format with all defined
+      # watch points. This format is compatible with RetroDebugger for enhanced
+      # debugging features.
+      #
+      # @example RetroDebugger watches file format
+      #   {
+      #     "Version": "1",
+      #     "Segments": [
+      #       {
+      #         "Name": "Default",
+      #         "Watches": [
+      #           {
+      #             "Label": "player_x",
+      #             "Address": "2000",
+      #             "Format": "hex8"
+      #           }
+      #         ]
+      #       }
+      #     ]
+      #   }
+      def save_retrodebugger_watches
+        FileUtils.mkdir_p("./output/meta/watches")
+        File.open("./output/meta/watches/#{filename}.json.watches", 'w') do |output|
+          output.write formatted_retrodebugger_watches
+        end
+      end
+
+      # Formats watches for RetroDebugger JSON output.
+      #
+      # Converts the internal watchers array and namespaced watches into RetroDebugger's 
+      # JSON format with proper structure and metadata.
+      #
+      # @return [String] JSON formatted watches
+      #
+      # @private
+      def formatted_retrodebugger_watches
+        require 'json'
+        
+        watches = []
+        
+        # Add regular watches
+        (@watchers || []).each do |watcher|
+          watches << {
+            "Label" => watcher[:label].to_s,
+            "Address" => watcher[:address].to_s(16),
+            "Format" => "hex8"
+          }
+        end
+        
+        # Add namespaced watches if available
+        if respond_to?(:collect_namespaced_watches)
+          namespaced_watches = collect_namespaced_watches
+          namespaced_watches.each do |label, address|
+            watches << {
+              "Label" => label.to_s,
+              "Address" => address.to_s,
+              "Format" => "hex8"
+            }
+          end
+        end
+
+        data = {
+          "Version" => "1",
+          "Segments" => [
+            {
+              "Name" => "Default",
+              "Watches" => watches
+            }
+          ]
+        }
+
+        JSON.pretty_generate(data)
+      end
+
+      # Saves breakpoints in RetroDebugger JSON format.
+      #
+      # Creates a breakpoints file in RetroDebugger's JSON format with all defined
+      # breakpoints. This format is compatible with RetroDebugger for enhanced
+      # debugging features.
+      #
+      # @example RetroDebugger breakpoints file format
+      #   {
+      #     "Version": "1",
+      #     "Segments": [
+      #       {
+      #         "Name": "Default",
+      #         "Breakpoints": [
+      #           {
+      #             "Type": "CpuPC",
+      #             "Items": [
+      #               {
+      #                 "IsActive": true,
+      #                 "Addr": 8192,
+      #                 "Actions": 2,
+      #                 "Data": 0
+      #               }
+      #             ]
+      #           }
+      #         ]
+      #       }
+      #     ]
+      #   }
+      def save_retrodebugger_breakpoints
+        FileUtils.mkdir_p("./output/meta/breakpoints")
+        File.open("./output/meta/breakpoints/#{filename}.json.breakpoints", 'w') do |output|
+          output.write formatted_retrodebugger_breakpoints
+        end
+      end
+
+      # Formats breakpoints for RetroDebugger JSON output.
+      #
+      # Converts the internal breakpoints array into RetroDebugger's JSON format
+      # with proper structure and metadata.
+      #
+      # @return [String] JSON formatted breakpoints
+      #
+      # @private
+      def formatted_retrodebugger_breakpoints
+        require 'json'
+        
+        breakpoint_types = {}
+        (@breakpoints || []).each do |breakpoint|
+          type = case breakpoint[:type]
+                 when 'breakonpc'
+                   'CpuPC'
+                 when /breakmem/
+                   'Memory'
+                 when 'breakraster'
+                   'RasterLine'
+                 else
+                   'CpuPC'
+                 end
+          
+          breakpoint_types[type] ||= []
+          
+          # Parse the params to extract address and other data
+          params = breakpoint[:params].to_s
+          addr = params.match(/\h+/) ? params.match(/\h+/)[0].to_i(16) : 0
+          
+          item = {
+            "IsActive" => true,
+            "Addr" => addr,
+            "Actions" => 2,
+            "Data" => 0
+          }
+          
+          # Add memory-specific fields
+          if type == 'Memory'
+            item["MemoryAccess"] = 6  # Read/Write
+            item["Value"] = 255
+            item["Comparison"] = 2
+          end
+          
+          breakpoint_types[type] << item
+        end
+        
+        breakpoints_array = []
+        breakpoint_types.each do |type, items|
+          breakpoints_array << {
+            "Type" => type,
+            "Items" => items
+          }
+        end
+
+        data = {
+          "Version" => "1",
+          "Segments" => [
+            {
+              "Name" => "Default",
+              "Breakpoints" => breakpoints_array
+            }
+          ]
+        }
+
+        JSON.pretty_generate(data)
       end
 
       # Returns the configured entry point address.

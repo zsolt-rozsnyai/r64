@@ -41,7 +41,7 @@ module R64
       # @param arg [Symbol] The label name to retrieve
       # @param options [Hash] Additional options (currently unused)
       #
-      # @return [Integer] The label's address, or 12345 during precompilation
+      # @return [Integer] The label's address, or current PC during precompilation
       #
       # @raise [Exception] If the label doesn't exist during final compilation
       #
@@ -49,14 +49,14 @@ module R64
       #   label :start
       #   address = get_label(:start)  # Returns the address of :start
       #
-      # @note During precompilation, returns a placeholder value (12345)
+      # @note During precompilation, returns the current PC value
       #   to allow forward references to be processed.
       def get_label(arg, options = {})
         @labels ||= {}
         @references ||= {}
         @references[arg] ||= []
         @references[arg].push @processor.pc unless @references[arg].include?(@processor.pc)
-        @precompile ? 12345 : @labels[arg] ? @labels[arg] : raise(Exception.new("Label does not exists '#{arg}', #{@labels.to_json}"))
+        @precompile ? @processor.pc : @labels[arg] ? @labels[arg] : raise(Exception.new("Label does not exists '#{arg}', #{@labels.to_json}"))
       end
 
       # Defines a new label at the specified or current address.
