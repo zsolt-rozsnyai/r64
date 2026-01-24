@@ -99,33 +99,34 @@ RSpec.describe R64::Base::NamespacedLabels do
     let(:instance) { R64::Base.new }
 
     it 'shortens long label names by splitting on underscores' do
-      result = instance.send(:shorten_label_name, '_get_precalculated_order')
+      result = instance.send(:shorten_label_name, 'get_precalculated_order')
       expect(result).to eq('getpreord')
     end
 
-    it 'takes first 3 characters from each word' do
+    it 'uses dynamic character allocation based on word count' do
       result = instance.send(:shorten_label_name, 'very_long_method_name')
-      expect(result).to eq('verlonmetn')
+      expect(result).to eq('velomena')  # 4 words, 2 chars each
     end
 
-    it 'handles labels with leading underscores' do
-      result = instance.send(:shorten_label_name, '_set_sprite_position')
-      expect(result).to eq('setsprpos')
+    it 'handles labels with leading underscores by splitting them as words' do
+      result = instance.send(:shorten_label_name, '_test_method')
+      expect(result).to eq('tesmet')  # 2 words: 'test', 'method' -> 5 chars each
     end
 
     it 'truncates to 10 characters maximum' do
       result = instance.send(:shorten_label_name, 'extremely_long_method_name_that_exceeds_limits')
       expect(result.length).to be <= 10
+      expect(result).to eq('elmntel')  # 6 words, 1 char each
     end
 
     it 'returns short labels unchanged' do
       result = instance.send(:shorten_label_name, 'short')
-      expect(result).to eq('sho')  # Single word gets first 3 chars
+      expect(result).to eq('short')  # Single word, fits in 10 chars
     end
 
     it 'handles single word labels' do
       result = instance.send(:shorten_label_name, 'verylongsinglewordinput')
-      expect(result).to eq('ver')  # Single word gets first 3 chars, then truncated to 10
+      expect(result).to eq('verylongsi')  # Single word, 10 chars allocated, truncated to 10
     end
   end
 
@@ -139,7 +140,7 @@ RSpec.describe R64::Base::NamespacedLabels do
 
     it 'creates method labels with exclamation separator' do
       result = instance.send(:create_namespaced_label, 'SP0', '_set_xpos')
-      expect(result).to eq('SP0!_SET_XPOS')
+      expect(result).to eq('SP0!SETXPOS')
     end
 
     it 'shortens long labels' do
@@ -149,7 +150,7 @@ RSpec.describe R64::Base::NamespacedLabels do
 
     it 'converts to uppercase' do
       result = instance.send(:create_namespaced_label, 'sp0', 'test_label')
-      expect(result).to eq('SP0_TEST_LABEL')
+      expect(result).to eq('SP0_TESTLABEL')
     end
 
     it 'truncates to 16 characters maximum' do
@@ -209,9 +210,9 @@ RSpec.describe R64::Base::NamespacedLabels do
       watches = base_instance.collect_namespaced_watches
       
       # Should have namespaced labels with proper separators and shortening
-      expect(watches.keys).to include(match(/BA\d+_TEST_VAR/))     # Regular variable
-      expect(watches.keys).to include(match(/BA\d+!TESMET/))       # Method (starts with _), shortened
-      expect(watches.keys).to include(match(/BA\d+_ANOVAR/))       # Regular variable, shortened
+      expect(watches.keys).to include(match(/BA\d+_TESTVAR/))      # Regular variable (test_var -> testvar)
+      expect(watches.keys).to include(match(/BA\d+!TESTMETHO/))    # Method (starts with _), shortened
+      expect(watches.keys).to include(match(/BA\d+_ANOTHVAR/))     # Regular variable, shortened
     end
 
     it 'converts watch labels to uppercase' do
@@ -264,7 +265,7 @@ RSpec.describe R64::Base::NamespacedLabels do
       base_instance.send(:collect_watches_recursive, base_instance, collected_watches, used_addresses)
       
       expect(collected_watches).not_to be_empty
-      expect(collected_watches.keys.first).to include('TEST_WATCH')
+      expect(collected_watches.keys.first).to include('TESTWATCH')
     end
 
     it 'handles objects without watches' do
@@ -292,7 +293,7 @@ RSpec.describe R64::Base::NamespacedLabels do
       base_instance.send(:collect_watches_recursive, base_instance, collected_watches, used_addresses)
       
       expect(collected_watches).not_to be_empty
-      expect(collected_watches.keys.first).to include('CHIWAT')  # child_watch gets shortened
+      expect(collected_watches.keys.first).to include('CHILDWATCH')  # child_watch -> childwatch
     end
 
     it 'handles arrays of objects in @_ variables' do
@@ -339,7 +340,7 @@ RSpec.describe R64::Base::NamespacedLabels do
       base_instance.send(:collect_watches_recursive, base_instance, collected_watches, used_addresses)
       
       # Should only have one watch (first definition wins)
-      same_label_watches = collected_watches.select { |k, v| k.include?('SAME_LABEL') }  # same_label doesn't get shortened (10 chars)
+      same_label_watches = collected_watches.select { |k, v| k.include?('SAMELABEL') }  # same_label -> samelabel
       expect(same_label_watches.length).to eq(1)
       expect(same_label_watches.values.first).to eq("4000") # First address
     end

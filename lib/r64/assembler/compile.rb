@@ -184,9 +184,24 @@ module R64
       #   breakmem d020w
       #   breakraster 100
       def save_breakpoints
-        file = (@breakpoints || []).map do |breakpoint|
-          "#{breakpoint[:type]} #{breakpoint[:params]}"
-        end.join("\n")
+        breakpoint_lines = []
+        
+        # Add regular breakpoints
+        (@breakpoints || []).each do |breakpoint|
+          breakpoint_lines << "#{breakpoint[:type]} #{breakpoint[:params]}"
+        end
+        
+        # Add namespaced breakpoints if available
+        if respond_to?(:collect_namespaced_breakpoints)
+          namespaced_breakpoints = collect_namespaced_breakpoints
+          namespaced_breakpoints.each do |breakpoint|
+            # Format: "breakonpc 2010 # MU0"
+            comment = " # #{breakpoint['namespace']}"
+            breakpoint_lines << "#{breakpoint['type']} #{breakpoint['address']}#{comment}"
+          end
+        end
+        
+        file = breakpoint_lines.join("\n")
 
         FileUtils.mkdir_p("./output/meta/breakpoints")
         File.open("./output/meta/breakpoints/#{filename}.breakpoints", 'w') do |output|
@@ -389,6 +404,8 @@ module R64
         require 'json'
         
         breakpoint_types = {}
+        
+        # Add regular breakpoints
         (@breakpoints || []).each do |breakpoint|
           type = case breakpoint[:type]
                  when 'breakonpc'
@@ -422,6 +439,45 @@ module R64
           end
           
           breakpoint_types[type] << item
+        end
+        
+        # Add namespaced breakpoints if available
+        if respond_to?(:collect_namespaced_breakpoints)
+          namespaced_breakpoints = collect_namespaced_breakpoints
+          namespaced_breakpoints.each do |breakpoint|
+            type = case breakpoint["type"]
+                   when 'breakonpc'
+                     'CpuPC'
+                   when /breakmem/
+                     'Memory'
+                   when 'breakraster'
+                     'RasterLine'
+                   else
+                     'CpuPC'
+                   end
+            
+            breakpoint_types[type] ||= []
+            
+            # Parse address from hex string
+            addr = breakpoint["address"].match(/\h+/) ? breakpoint["address"].match(/\h+/)[0].to_i(16) : 0
+            
+            item = {
+              "IsActive" => true,
+              "Addr" => addr,
+              "Actions" => 2,
+              "Data" => 0,
+              "Namespace" => breakpoint["namespace"]
+            }
+            
+            # Add memory-specific fields
+            if type == 'Memory'
+              item["MemoryAccess"] = 6  # Read/Write
+              item["Value"] = 255
+              item["Comparison"] = 2
+            end
+            
+            breakpoint_types[type] << item
+          end
         end
         
         breakpoints_array = []

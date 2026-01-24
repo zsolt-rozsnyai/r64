@@ -188,7 +188,7 @@ class Multiplexer < R64::Base
     # Use yindex[0] to determine which frame we're in
     lda :yindex
     tay
-    
+    break_pc
     # Get low byte of pointer
     lda :_sprite_order_pointers_lo, :y
     sta :current_row_ptr

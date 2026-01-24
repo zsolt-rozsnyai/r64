@@ -79,6 +79,31 @@ module R64
         collected_watches
       end
 
+      # Returns all breakpoints from this object and its @_ children with proper namespacing.
+      #
+      # This method recursively traverses all @_ instance variables and collects
+      # breakpoints from each object, applying appropriate namespacing to prevent
+      # collisions. Breakpoint labels are truncated to 16 characters and deduplicated.
+      #
+      # @return [Array] Array of namespaced breakpoint hashes with type, address, and namespace info
+      #
+      # @example Getting namespaced breakpoints from main object
+      #   main = Main.new
+      #   breakpoints = main.collect_namespaced_breakpoints
+      #   # => [{"type" => "breakonpc", "address" => "2010", "namespace" => "MU0"}]
+      #
+      # @note Breakpoint collisions are resolved by keeping the first definition
+      # @note Address collisions are resolved by keeping the first breakpoint for that address
+      def collect_namespaced_breakpoints
+        collected_breakpoints = []
+        used_addresses = {}
+        
+        # Collect breakpoints from this object and all @_ children recursively
+        collect_breakpoints_recursive(self, collected_breakpoints, used_addresses)
+        
+        collected_breakpoints
+      end
+
       private
 
       # Recursively collects labels from an object and its @_ children.
@@ -183,6 +208,59 @@ module R64
         end
       end
 
+      # Recursively collects breakpoints from an object and its @_ children.
+      #
+      # This method traverses the object hierarchy by examining all instance variables
+      # that start with @_ and recursively collecting breakpoints from each child object.
+      #
+      # @param obj [R64::Base] The object to collect breakpoints from
+      # @param collected_breakpoints [Array] Array to store collected breakpoints (modified in place)
+      # @param used_addresses [Hash] Hash to track used addresses (modified in place)
+      #
+      # @private
+      def collect_breakpoints_recursive(obj, collected_breakpoints, used_addresses)
+        # Get breakpoints from current object
+        if obj.respond_to?(:instance_variable_get) && obj.instance_variable_get(:@breakpoints)
+          namespace = generate_namespace(obj)
+          obj_breakpoints = obj.instance_variable_get(:@breakpoints) || []
+          
+          obj_breakpoints.each do |breakpoint|
+            # Get the address from the breakpoint params
+            address = breakpoint[:params].to_s
+            
+            # Skip if address already used (first address wins)
+            next if used_addresses.key?(address)
+            
+            # Create namespaced breakpoint entry
+            namespaced_breakpoint = {
+              "type" => breakpoint[:type],
+              "address" => address,
+              "namespace" => namespace
+            }
+            
+            collected_breakpoints << namespaced_breakpoint
+            used_addresses[address] = namespace
+          end
+        end
+        
+        # Recursively process @_ instance variables
+        obj.instance_variables.each do |var_name|
+          next unless var_name.to_s.start_with?('@_')
+          
+          var_value = obj.instance_variable_get(var_name)
+          
+          if var_value.is_a?(Array)
+            # Handle arrays of objects
+            var_value.each do |item|
+              collect_breakpoints_recursive(item, collected_breakpoints, used_addresses) if item.respond_to?(:instance_variables)
+            end
+          elsif var_value.respond_to?(:instance_variables)
+            # Handle single objects
+            collect_breakpoints_recursive(var_value, collected_breakpoints, used_addresses)
+          end
+        end
+      end
+
       # Generates a 2-character namespace from an object's class name and index.
       #
       # The namespace is created by taking the first two consonants from the class name
@@ -220,72 +298,76 @@ module R64
         "#{namespace_chars}#{index}"
       end
 
-      # Creates a namespaced label name, with smart shortening and uppercase formatting.
+      # Creates a namespaced label with proper formatting and collision prevention.
       #
-      # Combines the namespace with the original label name. For label names longer
-      # than 10 characters, creates a shortened version by removing underscores and
-      # vowels, then truncating. Labels starting with underscore use '!' notation.
-      # All characters are converted to uppercase.
+      # This method combines a namespace with a label name, applying appropriate
+      # formatting rules and truncation to ensure compatibility with debugging tools.
       #
-      # @param namespace [String] The namespace prefix (e.g., "SP0")
+      # @param namespace [String] The namespace prefix (e.g., "SP0", "MU0")
       # @param label_name [String] The original label name
-      # @return [String] Namespaced label with smart shortening and uppercase formatting
+      # @return [String] Formatted namespaced label (max 16 characters)
       #
       # @example Creating namespaced labels
-      #   create_namespaced_label("SP0", "xpos")                  # => "SP0_XPOS"
-      #   create_namespaced_label("SP0", "_set_xpos")             # => "SP0!SET_XPOS"
-      #   create_namespaced_label("MU0", "_get_precalculated_order") # => "MU0!GETPREORD"
-      #   create_namespaced_label("SM0", "very_long_method_name") # => "SM0_VERLONMET"
+      #   create_namespaced_label("SP0", "xpos")           # => "SP0_XPOS"
+      #   create_namespaced_label("MU0", "_get_order")     # => "MU0!GETORD"
+      #   create_namespaced_label("SC0", "very_long_name") # => "SC0_VERLON"
       #
       # @private
       def create_namespaced_label(namespace, label_name)
-        # Determine if label starts with underscore for special notation
-        starts_with_underscore = label_name.to_s.start_with?('_')
+        # Check if label starts with underscore (method label)
+        method_label = label_name.to_s.start_with?('_')
         
-        # Create shortened version if label name is longer than 10 characters
-        processed_label = label_name.length > 10 ? shorten_label_name(label_name) : label_name.to_s
+        # Remove preceding underscore if it's a method label
+        cleaned_name = method_label ? label_name.to_s[1..-1] : label_name.to_s
         
-        # Use ! notation for labels that originally started with underscore, _ for others
-        separator = starts_with_underscore ? '!' : '_'
+        # Create shortened version using new algorithm
+        processed_label = shorten_label_name(cleaned_name)
         
-        # Create full label and convert to uppercase
+        # Use ! prefix for method labels, _ for regular labels
+        separator = method_label ? '!' : '_'
+        
+        # Create full label with namespace prefix and convert to uppercase
         full_label = "#{namespace}#{separator}#{processed_label}".upcase
         
         # Truncate to 16 characters if necessary
         full_label.length > 16 ? full_label[0, 16] : full_label
       end
 
-      # Creates a shortened version of a label name by splitting on underscores and taking parts.
+      # Creates a shortened version of a label name using dynamic character allocation.
       #
-      # This method creates a compact representation of long label names by:
-      # 1. Removing leading underscores
-      # 2. Splitting by underscores into words
-      # 3. Taking first 3 characters from each word
-      # 4. Joining and truncating to 10 characters
+      # This method creates a compact representation of label names by:
+      # 1. Splitting by underscores into words
+      # 2. Calculating characters per word: (10 / words.count).to_i
+      # 3. Taking that many characters from each word
+      # 4. Joining all parts
       #
-      # @param label_name [String] The original label name
+      # @param label_name [String] The original label name (without leading underscores)
       # @return [String] Shortened label name (max 10 characters)
       #
       # @example Shortening label names
-      #   shorten_label_name("_get_precalculated_order") # => "getpreord"
-      #   shorten_label_name("very_long_method_name")    # => "verlonmet"
-      #   shorten_label_name("set_sprite_position")      # => "setsprpos"
+      #   shorten_label_name("get_precalculated_order") # => "getpreord" (3 words, 3 chars each)
+      #   shorten_label_name("very_long_method_name")   # => "verlonmet" (4 words, 2 chars each)
+      #   shorten_label_name("set_sprite_position")     # => "setsprpos" (3 words, 3 chars each)
+      #   shorten_label_name("single")                  # => "single"    (1 word, 10 chars)
       #
       # @private
       def shorten_label_name(label_name)
-        # Remove leading underscores
-        cleaned = label_name.gsub(/^_+/, '')
-        
         # Split by underscores into words
-        words = cleaned.split('_')
+        words = label_name.split('_')
         
-        # Take first 3 characters from each word
-        shortened_parts = words.map { |word| word[0, 3] }
+        # Calculate how many characters to take from each word
+        chars_per_word = (10 / words.count).to_i
+        
+        # Ensure we take at least 1 character per word
+        chars_per_word = [chars_per_word, 1].max
+        
+        # Take calculated number of characters from each word
+        shortened_parts = words.map { |word| word[0, chars_per_word] }
         
         # Join all parts
         shortened = shortened_parts.join
         
-        # Truncate to 10 characters
+        # Truncate to 10 characters if still too long
         shortened[0, 10]
       end
     end

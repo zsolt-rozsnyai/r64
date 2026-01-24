@@ -41,6 +41,7 @@ class Sprite < R64::Base
       lda :xpos
       clc
       adc 0x20
+      break_pc
       sta 0xd000 + @num * 2
       lda :ypos
       clc
