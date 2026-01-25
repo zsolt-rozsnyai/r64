@@ -1,11 +1,14 @@
 require './app/multiplexer'
 
+# IRQ system for sprite multiplexing
+# Uses 2 IRQs to reuse 8 hardware sprites for 24 total sprites
 class Screen < R64::Base
   before do
     @_multiplexer = Multiplexer.new self
     @calculator_raster = 0xef
   end
 
+  # Setup raster IRQs, disable CIA interrupts, enable all sprites
   def _setup_irq
       sei
       lda 0x7f
@@ -35,17 +38,17 @@ class Screen < R64::Base
       cli
   end
 
+  # Main IRQ: calculate positions, setup first 8 sprites, chain to IRQ2
   def _irq
       lda Multiplexer::BG_COLOR
       sta 0xd021
       sta 0xd020
 
-      @_multiplexer.calculate_next_positions
+    @_multiplexer.calculate_next_positions
 
-      @_multiplexer.get_first_sprite_ypos
-      # clc
-      # adc 0x20 + 20
+    @_multiplexer.get_first_sprite_ypos
       sta 0xd012
+ 
     address 0xfffe, :_irq2
 
       lda Multiplexer::BG_COLOR
@@ -56,6 +59,7 @@ class Screen < R64::Base
       rti
   end
 
+  # Secondary IRQ: position remaining sprites with raster timing
   def _irq2
       lda Multiplexer::BG_COLOR
       sta 0xd021
@@ -75,6 +79,7 @@ class Screen < R64::Base
       rti
   end
 
+  # Clear screen memory with spaces
   def _clear
       ldx 0
     label :clear_loop

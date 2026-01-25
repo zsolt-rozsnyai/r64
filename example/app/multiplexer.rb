@@ -1,6 +1,8 @@
 require './app/sprite_manager'
 require './app/sprite_gfx'
 
+# Sprite multiplexing: 24 sprites using 8 hardware sprites
+# Uses sine/cosine animation with pre-calculated lookup tables
 class Multiplexer < R64::Base
   attr_reader :_sprite_managers
 
@@ -14,6 +16,7 @@ class Multiplexer < R64::Base
   YPOS_OFFSET = 51
   XPOS_OFFSET = 120
 
+  # Background color (yellow)
   BG_COLOR = 7
 
   before do
@@ -24,15 +27,17 @@ class Multiplexer < R64::Base
     @_sprite_gfx = SpriteGfx.new self
   end
 
+  # Calculate Y position using sine wave
   def calculate_sinus_values(index)
     (Math.sin(2 * Math::PI * index / SIN_SIZE) * HEIGHT / 2).to_i + HEIGHT / 2
   end
 
+  # Calculate X position using cosine wave
   def calculate_cos_values(index)
     (Math.cos(2 * Math::PI * index / COS_SIZE) * WIDTH / 2).to_i + WIDTH / 2
   end
 
-  # Shared algorithm for calculating sprite positions
+  # Calculate all 24 sprite positions for given frame
   def calculate_sprite_positions_for_frame(frame_offset = 0)
     positions = []
     MAX_SPRITES.times do |sprite_idx|
@@ -51,6 +56,7 @@ class Multiplexer < R64::Base
     positions
   end
 
+  # Memory layout: indices, positions, lookup tables
   def variables
     data :xindex, (1..MAX_SPRITES).map{|i| i * DISTANCE % COS_SIZE }
     data :yindex, (1..MAX_SPRITES).map{|i| i * DISTANCE % SIN_SIZE }
@@ -59,9 +65,6 @@ class Multiplexer < R64::Base
     initial_positions = calculate_sprite_positions_for_frame(0)
     data :xpositions, initial_positions.map { |pos| pos[:x] }
     data :ypositions, initial_positions.map { |pos| pos[:y] }
-    
-    var :swap_flag, 0
-    var :sort_index, 0 # 2-byte pointer for indirect addressing
     
     data :sorted_sprite_order, Array.new(MAX_SPRITES, 0)
     
@@ -74,16 +77,11 @@ class Multiplexer < R64::Base
     fill COS_SIZE do |i|
       XPOS_OFFSET + calculate_cos_values(i)
     end
-
-    data :sorted_x, Array.new(MAX_SPRITES, 0) 
-    data :sorted_y, Array.new(MAX_SPRITES, 0)
   end
 
+  # Pre-calculate sprite order for all frames (sorted by Y position)
   def _sprite_order_data
-    # Generate precalculated sprite orders for all possible Y positions
     # This creates a lookup table where each row contains sprite indices sorted by Y position
-    
-    # Calculate all possible sprite positions for the animation cycle using shared algorithm
     all_sprite_positions = []
     SIN_SIZE.times do |frame|
       frame_sprites = calculate_sprite_positions_for_frame(frame)
@@ -171,17 +169,14 @@ class Multiplexer < R64::Base
   end
 
   def _get_first_sprite_ypos
-    watch :sorted_sprite_order
-    watch :ypositions
     ldy :sorted_sprite_order
     lda :ypositions, :y
     clc
     adc 21
   end
 
+  # Position sprites 8-23 with raster timing (wait for beam position)
   def _set_sprite_positions_in_irq
-    watch :sorted_sprite_order + 8
-    watch 0xd012
     8.times do |i|
       # lda i
       # sta 0xd021
@@ -239,9 +234,6 @@ class Multiplexer < R64::Base
       # Get high byte of pointer
       lda :sprite_order_pointers_hi, :y
       sta :copy_order_loop + 2
-
-    watch :copy_order_loop + 1
-    watch :copy_order_loop + 2
       
       # Copy precalculated sprite order to current positions
       ldy 0
@@ -253,12 +245,11 @@ class Multiplexer < R64::Base
       bne :copy_order_loop
   end
 
+  # Main update: increment indices, calculate positions, sort, display
   def _calculate_next_positions
     increment_indexes
     calculate_positions
     get_precalculated_order
     set_sprite_positions
-
-    watch :sorted_sprite_order
   end
 end

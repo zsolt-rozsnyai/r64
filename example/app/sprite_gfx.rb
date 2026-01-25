@@ -1,3 +1,5 @@
+# Sprite graphics data (24x21 pixels, 63 bytes)
+# Placed at 0x0fc0 for sprite pointer 0x3f
 class SpriteGfx < R64::Base
   def variables
     @current_pc = @processor.pc
