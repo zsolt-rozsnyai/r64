@@ -6,13 +6,13 @@ class Sprite < R64::Base
   def variables
     var :xpos, 0
     var :ypos, 0
-    var :shape, 0xff
-    var :color, @index % 16
+    var :shape, 0x3f
+    var :color, 0#@index % 16
   end
 
-  # def inline_methods
-  #   [_turn_on, _set_xpos, _set_ypos, _set_shape, _set_color]
-  # end
+#   def inline_methods
+#     [_set_xpos, _set_ypos, _set_shape, _set_color]
+#   end
 
   def _turn_on
       lda :color
@@ -29,19 +29,10 @@ class Sprite < R64::Base
       sta :ypos
   end
 
-  def _set_shape
-      sta :shape
-  end
-
-  def _set_color
-      sta :color
-  end
-
   def _set_position
       lda :xpos
       clc
       adc 0x20
-      break_pc
       sta 0xd000 + @num * 2
       lda :ypos
       clc

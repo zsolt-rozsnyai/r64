@@ -2,7 +2,7 @@ require './app/screen'
 
 class Main < R64::Base
   before do
-    setup start: 0x2000, end: 0x3fff
+    setup start: 0x1000, end: 0x4fff, entry: 0x2000
     @_screen = Screen.new self
   end
 

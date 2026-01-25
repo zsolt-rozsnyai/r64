@@ -17,6 +17,9 @@ class Screen < R64::Base
     set 0xd012, @calculator_raster
     set 0xd011, 0x1b
     set 0xd018, 0x14
+      lda 0xdd00
+      ora 0x03
+      sta 0xdd00
       lda 0x35
       sta 0x01, :zeropage => true #TODO: this is not so pretty
     address 0xfffe, :_irq
@@ -33,15 +36,15 @@ class Screen < R64::Base
   end
 
   def _irq
-      lda 0x00
+      lda 0x07
       sta 0xd021
       sta 0xd020
 
       @_multiplexer.calculate_next_positions
 
-      lda @_multiplexer._sprite_managers[0]._sprites[0].ypos
-      clc
-      adc 0x20
+      @_multiplexer.get_first_sprite_ypos
+      # clc
+      # adc 0x20 + 20
       sta 0xd012
     address 0xfffe, :_irq2
 
@@ -54,15 +57,11 @@ class Screen < R64::Base
   end
 
   def _irq2
-      lda 0x00
+      lda 0x07
       sta 0xd021
       sta 0xd020
 
-      ldx 0
-    label :lll
-      inx
-      cpx 0x80
-      bne :lll
+      @_multiplexer.set_sprite_positions_in_irq
 
       lda @calculator_raster
       sta 0xd012

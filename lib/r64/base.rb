@@ -121,7 +121,7 @@ module R64
     # @see R64::Processor#set_pc For processor program counter management
     # @see R64::Memory For memory boundary management
     def setup options={}
-      processor.set_pc(options[:start])
+      processor.set_pc(options[:entry] || options[:start])
       processor.start = options[:start]
       memory.start = options[:start]
       memory.finish = options[:end]

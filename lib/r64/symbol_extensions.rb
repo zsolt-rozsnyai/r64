@@ -147,9 +147,15 @@ class Symbol
       end
     end
     
-    # If we still haven't found the label, raise a specific error that can be caught
+    # If we still haven't found the label, check if we're in precompile phase
     if label_address.nil?
-      raise LabelResolutionError, "Failed to resolve label :#{self} in any context"
+      # During precompile phase, return current PC for unresolved labels
+      if assembler_context.instance_variable_get(:@precompile)
+        current_pc = assembler_context.instance_variable_get(:@processor)&.pc || 0
+        return current_pc.send(operation, operand)
+      else
+        raise LabelResolutionError, "Failed to resolve label :#{self} in any context"
+      end
     else
       # Perform the arithmetic operation on the resolved label address
       label_address.send(operation, operand)
