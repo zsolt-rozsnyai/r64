@@ -36,7 +36,7 @@ class Screen < R64::Base
   end
 
   def _irq
-      lda 0x07
+      lda Multiplexer::BG_COLOR
       sta 0xd021
       sta 0xd020
 
@@ -48,7 +48,7 @@ class Screen < R64::Base
       sta 0xd012
     address 0xfffe, :_irq2
 
-      lda 0x07
+      lda Multiplexer::BG_COLOR
       sta 0xd021
       sta 0xd020
 
@@ -57,7 +57,7 @@ class Screen < R64::Base
   end
 
   def _irq2
-      lda 0x07
+      lda Multiplexer::BG_COLOR
       sta 0xd021
       sta 0xd020
 
@@ -67,7 +67,7 @@ class Screen < R64::Base
       sta 0xd012
     address 0xfffe, :_irq
 
-      lda 0x07
+      lda Multiplexer::BG_COLOR
       sta 0xd021
       sta 0xd020
 

@@ -31,12 +31,8 @@ class Sprite < R64::Base
 
   def _set_position
       lda :xpos
-      clc
-      adc 0x20
       sta 0xd000 + @num * 2
       lda :ypos
-      clc
-      adc 0x30
       sta 0xd001 + @num * 2
       turn_on
   end

@@ -4,19 +4,32 @@ require './app/sprite_gfx'
 class Multiplexer < R64::Base
   attr_reader :_sprite_managers
 
-  MAX_SPRITES = 16
+  MAX_SPRITES = 24
   WIDTH = 120
-  HEIGHT = 160
-  SIN_SIZE = 17 * 13
-  COS_SIZE = 7 * 11
-  DISTANCE = 11
+  HEIGHT = 180
+  SIN_SIZE = 10 * 24
+  COS_SIZE = 16 * 8
+  DISTANCE = 10
+
+  YPOS_OFFSET = 51
+  XPOS_OFFSET = 32
+
+  BG_COLOR = 7
 
   before do
     @_sprite_managers = []
-    @_sprite_managers.push SpriteManager.new self
-    @_sprite_managers.push SpriteManager.new self
-    # @_sprite_managers.push SpriteManager.new self
+    3.times do |i|
+      @_sprite_managers.push SpriteManager.new self
+    end
     @_sprite_gfx = SpriteGfx.new self
+  end
+
+  def calculate_sinus_values(index)
+    (Math.sin(2 * Math::PI * index / SIN_SIZE) * HEIGHT / 2).to_i + HEIGHT / 2
+  end
+
+  def calculate_cos_values(index)
+    (Math.cos(2 * Math::PI * index / COS_SIZE) * WIDTH / 2).to_i + WIDTH / 2
   end
 
   # Shared algorithm for calculating sprite positions
@@ -30,8 +43,8 @@ class Multiplexer < R64::Base
       y_index = (initial_index + frame_offset) % SIN_SIZE
       x_index = (initial_index + frame_offset) % COS_SIZE
       
-      y_pos = (Math.sin(2 * Math::PI * y_index / SIN_SIZE) * HEIGHT / 2).to_i + HEIGHT / 2
-      x_pos = (Math.cos(2 * Math::PI * x_index / COS_SIZE) * WIDTH / 2).to_i + WIDTH / 2
+      y_pos = YPOS_OFFSET + calculate_sinus_values(y_index)
+      x_pos = XPOS_OFFSET + calculate_cos_values(x_index)
       
       positions << {sprite: sprite_idx, y: y_pos, x: x_pos}
     end
@@ -54,12 +67,12 @@ class Multiplexer < R64::Base
     
     label :yvalues
     fill SIN_SIZE do |i|
-      (Math.sin(2 * Math::PI * i / SIN_SIZE) * HEIGHT / 2).to_i + HEIGHT / 2
+      YPOS_OFFSET + calculate_sinus_values(i)
     end
     
     label :xvalues
     fill COS_SIZE do |i|
-      (Math.cos(2 * Math::PI * i / COS_SIZE) * WIDTH / 2).to_i + WIDTH / 2
+      XPOS_OFFSET + calculate_cos_values(i)
     end
 
     data :sorted_x, Array.new(MAX_SPRITES, 0) 
@@ -146,56 +159,10 @@ class Multiplexer < R64::Base
       bne :fill_sorter_loop
   end
 
-  # def _insertion_sort
-  #   label :i, 0x02
-  #   label :j, 0x03
-  #   label :tmp_xpos, 0x04
-  #   label :tmp_ypos, 0x05
-  #     ldx 1
-  #   label :sort_outer_loop
-  #     stx :i, zeropage: true
-
-  #     lda :ypositions, :x
-  #     sta :tmp_ypos, zeropage: true
-  #     lda :xpositions, :x
-  #     sta :tmp_xpos, zeropage: true
-
-  #     dex
-  #     stx :j, zeropage: true
-    
-  #   label :sort_inner_loop
-  #     ldx :j, zeropage: true
-  #     lda :ypositions, :x
-  #     cmp :tmp_ypos, zeropage: true
-  #     bcc :insert
-
-  #     lda :ypositions, :x
-  #     sta :ypositions + 1, :x
-  #     lda :xpositions, :x
-  #     sta :xpositions + 1, :x
-
-  #     dex
-  #     stx :j, zeropage: true
-  #     bpl :sort_inner_loop
-
-  #   label :insert
-  #     inx
-  #     lda :tmp_ypos, zeropage: true
-  #     sta :ypositions, :x
-  #     lda :tmp_xpos, zeropage: true
-  #     sta :xpositions, :x
-
-  #     ldx :i, zeropage: true
-  #     inx
-  #     cpx MAX_SPRITES
-  #     bne :sort_outer_loop
-  # end
-
   def _set_sprite_positions
     8.times do |i|
       ldy :sorted_sprite_order + i 
       lda :xpositions, :y 
-      adc 0x20
       @_sprite_managers[0]._sprites[i].set_xpos :inline
       lda :ypositions, :y 
       @_sprite_managers[0]._sprites[i].set_ypos :inline
@@ -208,49 +175,58 @@ class Multiplexer < R64::Base
     watch :ypositions
     ldy :sorted_sprite_order
     lda :ypositions, :y
-    adc 0x45
+    clc
+    adc 21
   end
 
   def _set_sprite_positions_in_irq
     watch :sorted_sprite_order + 8
     watch 0xd012
     8.times do |i|
+      # lda i
+      # sta 0xd021
       ldy :sorted_sprite_order + i
       lda :ypositions, :y
-      adc 0x45
+      clc
+      adc 21
     label "sprite_raster_loop_#{i}".to_sym
       cmp 0xd012
-      bcs "sprite_raster_loop_#{i}".to_sym
+      bcc "continue_sprite_setup_#{i}".to_sym
+      jmp "sprite_raster_loop_#{i}".to_sym
+    label "continue_sprite_setup_#{i}".to_sym
       lda :sorted_sprite_order + 8 + i
       tay
       lda :ypositions, :y
       @_sprite_managers[1]._sprites[i].set_ypos :inline
       lda :xpositions, :y 
-      adc 0x20
       @_sprite_managers[1]._sprites[i].set_xpos :inline
       @_sprite_managers[1]._sprites[i].set_position :inline
+      # lda BG_COLOR
+      # sta 0xd021
     end
 
-
-    #   ldx 16
-    # 8.times do |i|
-    #   lda :sorted_sprite_order - 16, :x 
-    #   tay
-    #   lda :ypositions, :y
-    #   adc 0x45
-    # label "sprite_raster_loop_2#{i}".to_sym
-    #   cmp 0xd012
-    #   bpl "sprite_raster_loop_2#{i}".to_sym
-    #   lda :sorted_sprite_order, :x 
-    #   tay
-    #   lda :ypositions, :y
-    #   @_sprite_managers[1]._sprites[i].set_ypos
-    #   lda :xpositions, :y 
-    #   adc 0x20
-    #   @_sprite_managers[1]._sprites[i].set_xpos
-    #   @_sprite_managers[1]._sprites[i].set_position
-    #   inx
-    # end
+    8.times do |i|
+      # lda i
+      # sta 0xd021
+      ldy :sorted_sprite_order + 8 + i
+      lda :ypositions, :y
+      clc
+      adc 21
+    label "sprite_raster_loop_2#{i}".to_sym
+      cmp 0xd012
+      bcc "continue_sprite_setup_2#{i}".to_sym
+      jmp "sprite_raster_loop_2#{i}".to_sym
+    label "continue_sprite_setup_2#{i}".to_sym
+      lda :sorted_sprite_order + 16 + i
+      tay
+      lda :ypositions, :y
+      @_sprite_managers[1]._sprites[i].set_ypos :inline
+      lda :xpositions, :y 
+      @_sprite_managers[1]._sprites[i].set_xpos :inline
+      @_sprite_managers[1]._sprites[i].set_position :inline
+      # lda BG_COLOR
+      # sta 0xd021
+    end
   end
 
   def _get_precalculated_order
