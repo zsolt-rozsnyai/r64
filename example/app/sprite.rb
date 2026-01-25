@@ -7,12 +7,8 @@ class Sprite < R64::Base
     var :xpos, 0
     var :ypos, 0
     var :shape, 0x3f
-    var :color, 0#@index % 16
+    var :color, 0
   end
-
-#   def inline_methods
-#     [_set_xpos, _set_ypos, _set_shape, _set_color]
-#   end
 
   def _turn_on
       lda :color
@@ -34,6 +30,8 @@ class Sprite < R64::Base
       sta 0xd000 + @num * 2
       lda :ypos
       sta 0xd001 + @num * 2
-      turn_on
+    #   inc :shape
+    watch :shape
+    turn_on :inline
   end
 end

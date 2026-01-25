@@ -12,7 +12,7 @@ class Multiplexer < R64::Base
   DISTANCE = 10
 
   YPOS_OFFSET = 51
-  XPOS_OFFSET = 32
+  XPOS_OFFSET = 120
 
   BG_COLOR = 7
 
