@@ -46,7 +46,9 @@ class Screen < R64::Base
 
     @_multiplexer.calculate_next_positions
 
-    @_multiplexer.get_first_sprite_ypos
+      jsr 0x1003
+ 
+      @_multiplexer.get_first_sprite_ypos
       sta 0xd012
  
     address 0xfffe, :_irq2

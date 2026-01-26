@@ -9,12 +9,15 @@ class Multiplexer < R64::Base
   MAX_SPRITES = 24
   WIDTH = 120
   HEIGHT = 180
+  DEPTH = 7
   SIN_SIZE = 10 * 24
   COS_SIZE = 16 * 8
+  WAVE_SIZE = 16 * DEPTH
   DISTANCE = 10
 
   YPOS_OFFSET = 51
   XPOS_OFFSET = 120
+  SHAPE_OFFSET = 0x38
 
   # Background color (yellow)
   BG_COLOR = 7
@@ -37,6 +40,11 @@ class Multiplexer < R64::Base
     (Math.cos(2 * Math::PI * index / COS_SIZE) * WIDTH / 2).to_i + WIDTH / 2
   end
 
+  # Calculate wave position (sprite shape) - values between 0x78 and 0x7f
+  def calculate_wave_values(index)
+    (Math.cos(2 * Math::PI * index / WAVE_SIZE) * DEPTH / 2).to_i + DEPTH / 2
+  end
+
   # Calculate all 24 sprite positions for given frame
   def calculate_sprite_positions_for_frame(frame_offset = 0)
     positions = []
@@ -47,11 +55,13 @@ class Multiplexer < R64::Base
       
       y_index = (initial_index + frame_offset) % SIN_SIZE
       x_index = (initial_index + frame_offset) % COS_SIZE
+      wave_index = (initial_index + frame_offset) % WAVE_SIZE
       
       y_pos = YPOS_OFFSET + calculate_sinus_values(y_index)
       x_pos = XPOS_OFFSET + calculate_cos_values(x_index)
+      wave_pos = calculate_wave_values(wave_index)
       
-      positions << {sprite: sprite_idx, y: y_pos, x: x_pos}
+      positions << {sprite: sprite_idx, y: y_pos, x: x_pos, wave: wave_pos}
     end
     positions
   end
@@ -60,11 +70,13 @@ class Multiplexer < R64::Base
   def variables
     data :xindex, (1..MAX_SPRITES).map{|i| i * DISTANCE % COS_SIZE }
     data :yindex, (1..MAX_SPRITES).map{|i| i * DISTANCE % SIN_SIZE }
+    data :waveindex, (1..MAX_SPRITES).map{|i| i * DISTANCE % WAVE_SIZE }
 
     # Initialize positions with frame 0 values instead of zeros
     initial_positions = calculate_sprite_positions_for_frame(0)
     data :xpositions, initial_positions.map { |pos| pos[:x] }
     data :ypositions, initial_positions.map { |pos| pos[:y] }
+    data :wavepositions, initial_positions.map { |pos| pos[:wave] }
     
     data :sorted_sprite_order, Array.new(MAX_SPRITES, 0)
     
@@ -76,6 +88,11 @@ class Multiplexer < R64::Base
     label :xvalues
     fill COS_SIZE do |i|
       XPOS_OFFSET + calculate_cos_values(i)
+    end
+
+    label :wavevalues
+    fill WAVE_SIZE do |i|
+      SHAPE_OFFSET + calculate_wave_values(i)
     end
   end
 
@@ -136,6 +153,14 @@ class Multiplexer < R64::Base
       lda 0
       sta :yindex, :x
     label :sin_no_reset
+      inc :waveindex, :x
+      clc
+      lda :waveindex, :x
+      cmp WAVE_SIZE
+      bne :wave_no_reset
+      lda 0
+      sta :waveindex, :x
+    label :wave_no_reset
       inx
       cpx MAX_SPRITES
       bne :increment_indexes_loop
@@ -152,6 +177,10 @@ class Multiplexer < R64::Base
       tay
       lda :yvalues, :y
       sta :ypositions, :x
+      lda :waveindex, :x
+      tay
+      lda :wavevalues, :y
+      sta :wavepositions, :x
       inx
       cpx MAX_SPRITES
       bne :fill_sorter_loop
@@ -164,6 +193,8 @@ class Multiplexer < R64::Base
       @_sprite_managers[0]._sprites[i].set_xpos :inline
       lda :ypositions, :y 
       @_sprite_managers[0]._sprites[i].set_ypos :inline
+      lda :wavepositions, :y 
+      @_sprite_managers[0]._sprites[i].set_shape :inline
       @_sprite_managers[0]._sprites[i].set_position :inline
     end
   end
@@ -195,6 +226,8 @@ class Multiplexer < R64::Base
       @_sprite_managers[1]._sprites[i].set_ypos :inline
       lda :xpositions, :y 
       @_sprite_managers[1]._sprites[i].set_xpos :inline
+      lda :wavepositions, :y 
+      @_sprite_managers[1]._sprites[i].set_shape :inline
       @_sprite_managers[1]._sprites[i].set_position :inline
       # lda BG_COLOR
       # sta 0xd021
@@ -218,6 +251,8 @@ class Multiplexer < R64::Base
       @_sprite_managers[1]._sprites[i].set_ypos :inline
       lda :xpositions, :y 
       @_sprite_managers[1]._sprites[i].set_xpos :inline
+      lda :wavepositions, :y 
+      @_sprite_managers[1]._sprites[i].set_shape :inline
       @_sprite_managers[1]._sprites[i].set_position :inline
       # lda BG_COLOR
       # sta 0xd021

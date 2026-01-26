@@ -9,7 +9,7 @@ class Sprite < R64::Base
     var :xpos, 0
     var :ypos, 0
     var :shape, 0x3f
-    var :color, 0
+    var :color, 3
   end
 
   # Turn on sprite by setting color and shape registers
@@ -28,6 +28,11 @@ class Sprite < R64::Base
   # Store Y position from accumulator
   def _set_ypos
       sta :ypos
+  end
+
+  # Store shape from accumulator
+  def _set_shape
+      sta :shape
   end
 
   # Apply stored position to VIC-II registers and turn on sprite
